@@ -1,0 +1,36 @@
+name: 发布存款经营平台
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 获取源码
+        uses: actions/checkout@v6
+      - name: 检查业务流程
+        run: node --test tests/core.test.js
+      - name: 配置站点
+        uses: actions/configure-pages@v5
+      - name: 上传网页
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+      - name: 发布网页
+        id: deployment
+        uses: actions/deploy-pages@v4
