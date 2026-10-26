@@ -40,3 +40,6 @@
 .btn[hidden]{display:none}
 @media(max-width:1100px){.poster-workspace{grid-template-columns:250px minmax(0,1fr)}.poster-settings{padding:18px}.poster-preview-pane{padding:18px}.poster-preview-toolbar{flex-wrap:wrap}.poster-template small{font-size:8px}}
 @media(max-width:740px){.poster-workspace{grid-template-columns:1fr}.poster-settings{border-right:0;border-bottom:1px solid var(--line)}.poster-template-options{max-width:360px}.poster-thumb{height:110px}.poster-preview-scroll{height:600px;max-height:70vh}.issue-grid:has(.poster-workspace)>.stack{grid-template-columns:1fr}.poster-preview-toolbar{align-items:center}.poster-preview-pane{padding:16px}}
+
+/* Keep the long-poster preview visible while reviewing many products. */
+@media(min-width:741px){.issue-grid:has(.poster-workspace)>.card{overflow:visible}.poster-preview-pane{position:sticky;top:16px;align-self:start}}
