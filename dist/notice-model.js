@@ -36,7 +36,7 @@ export function noticeRows(state,issue){
     if(!code)throw Error(`${v.name}缺少产品代码，请核对金市回传资料`);
     if(v.marketNumber&&p.marketNumber&&v.marketNumber!==p.marketNumber)throw Error(`${v.name}的说明书产品代码与回传代码不一致`);
     if(!v.name?.trim()||!dateValid(v.start)||!dateValid(v.end)||v.start>v.end)throw Error('说明书中的产品名称或募集日期不完整');
-    return {id,name:v.name,code,start:v.start,end:v.end,sourceId:p.prospectusSource?.id||'',purchaseChannels:p.prospectusSource?.extras?.purchaseChannels||''};
+    return {id,name:v.name,code,start:v.start,end:v.end,...(p.prospectusSource?{sourceId:p.prospectusSource.id,purchaseChannels:p.prospectusSource.extras?.purchaseChannels||''}:{})};
   });
 }
 

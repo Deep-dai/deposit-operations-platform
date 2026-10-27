@@ -54,6 +54,12 @@ test('通知预览转义手填内容，产品表保留完整日期来源',()=>{
   const html=noticeHTML(buildNoticeDocument(state,issue,config));assert.ok(html.includes('&lt;img'));assert.ok(!html.includes('<img'));
   assert.ok(html.includes('title="2026-10-26"'));assert.ok(html.includes('2026年10月27日'));
 });
+test('既有通知未关联原件时不因新增来源字段而被误报资料变化',()=>{
+  const {state,issue}=fixture();saveNotice(state,issue,complete(issue));
+  const doc=issue.notice.document;doc.rows=doc.rows.map(({id,name,code,start,end})=>({id,name,code,start,end}));
+  doc.sourceFingerprint=JSON.stringify(doc.rows);issue.material=noticeText(doc);
+  assert.deepEqual(noticeErrors(state,issue),[]);
+});
 
 function zipEntry(buffer,name){
   let offset=0;
