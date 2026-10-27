@@ -8,7 +8,7 @@ const original=file=>{const url=URL.createObjectURL(file);window.open(url,'_blan
 
 export function openProspectusIntake({state,productId='',role,showModal,closeModal,onSaved,onError}){
   let results=[],ticket=0;
-  showModal(productId?'接收金市回传资料':'识别产品说明书',`<div id="prospectusIntake"><div class="source-upload"><label class="btn primary">选择说明书<input id="prospectusFiles" type="file" accept=".pdf,.docx,.doc" ${productId?'':'multiple'}></label><p>支持可提取文字的PDF和.docx。先识别原文，再与已复核申报及金市最终要素核对。</p><small>文件在当前浏览器读取，接收后保留原件及取数依据。</small></div><div id="prospectusResults"></div></div>`, '',true);
+  showModal('接收金市回传资料',`<div id="prospectusIntake"><div class="source-upload"><label class="btn primary">选择说明书<input id="prospectusFiles" type="file" accept=".pdf,.docx,.doc" ${productId?'':'multiple'}></label><p>选择金市回传的产品说明书，提取要素后与已复核申报、金市最终要素核对。校验通过后，进入发行管理制作通知和海报。支持可提取文字的PDF和.docx。</p><small>文件在当前浏览器读取，接收后保留原件及取数依据。</small></div><div id="prospectusResults"></div></div>`, '',true);
   const root=document.querySelector('#prospectusIntake');
   root.onchange=async event=>{
     if(event.target.id!=='prospectusFiles')return;
