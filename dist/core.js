@@ -46,9 +46,20 @@ export function validate(p,state,{draft=false,newSeries=false,ignoreId=null}={})
  if(p.type==='ordinary'&&state.products.some(x=>x.id!==ignoreId&&x.type==='ordinary'&&x.name===p.name&&x.value===p.value))add('name','相同名称及起息日的产品已存在，请在申报查询中继续办理');
  return errors;
 }
+const numericCompareKeys=new Set(['tenor','low','mid','high','quota']);
+function comparisonValue(value,key){
+ const raw=value[key]??'';
+ if(raw===''||raw===null)return '';
+ if(numericCompareKeys.has(key)&&String(raw).trim()&&Number.isFinite(Number(raw)))return Number(raw);
+ if(key==='minimum'||key==='minimumUnit'){
+  if(present(value.minimum)&&Number.isFinite(Number(value.minimum))&&['元','万元'].includes(value.minimumUnit))return Number(value.minimum)*(value.minimumUnit==='万元'?10000:1);
+ }
+ if(key==='name')return String(raw).replace(/\s/g,'');
+ return String(raw);
+}
 export function compare(p){
  if(!p.approved||!p.market||!p.prospectus)return [];
- return COMPARE_FIELDS.filter(([k])=>p.type==='rolling'||!['observeStart','observeEnd'].includes(k)).map(([key,label])=>({key,label,a:p.approved[key]??'',b:p.market[key]??'',c:p.prospectus[key]??'',ok:String(p.approved[key]??'')===String(p.market[key]??'')&&String(p.market[key]??'')===String(p.prospectus[key]??'')}));
+ return COMPARE_FIELDS.filter(([k])=>p.type==='rolling'||!['observeStart','observeEnd'].includes(k)).map(([key,label])=>({key,label,a:p.approved[key]??'',b:p.market[key]??'',c:p.prospectus[key]??'',ok:comparisonValue(p.approved,key)===comparisonValue(p.market,key)&&comparisonValue(p.market,key)===comparisonValue(p.prospectus,key)}));
 }
 export function eligible(p){return !!(p && p.status==='ready' && p.approved && p.market && p.prospectus && compare(p).length>0 && compare(p).every(r=>r.ok));}
 export function transition(state,id,action,{role='manager',note='',difference=false}={}){
@@ -62,6 +73,7 @@ export function transition(state,id,action,{role='manager',note='',difference=fa
  else if(action==='correct'){must(['difference'],'manager');if(!note.trim())throw Error('请填写反馈意见');log(p,'反馈金市修正',note);p.status='market';p.market=null;p.prospectus=null;}
  else if(action==='revise'){must(['difference'],'manager');if(!note.trim())throw Error('请填写调整原因');p.status='returned';p.market=null;p.prospectus=null;p.approved=null;log(p,'业务要素调整',note+'；修改后须重新提交复核');}
  else throw Error('不支持的操作');
+ if(p.prospectus===null)p.prospectusSource=null;
  p.updated=now(); return p;
 }
 export function createProduct(state,data,{draft=false,newSeries=false}={}){

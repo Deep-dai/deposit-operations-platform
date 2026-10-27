@@ -11,7 +11,7 @@ export function mountNotice(root,{state,issue,editable,onChange,onError,onDownlo
       <div class="notice-workspace ${editable?'':'notice-readonly'}">${editable?`<aside class="notice-settings">
         <h3>本次通知</h3>${field('title','通知标题','text','placeholder="留空时按产品期次自动生成"')}${field('addressee','主送单位')}
         <div class="notice-field-pair">${field('issuer','发文单位')}${field('date','成文日期','date')}</div>
-        <details open><summary>发行安排</summary><div class="notice-detail-body"><div class="notice-times">${field('saleStart','销售开始','time')}${field('saleEnd','销售结束','time')}${field('lastClose','末日截止','time')}</div>${text('channels','发行渠道')}${text('region','发行区域')}</div></details>
+        <details open><summary>发行安排</summary><div class="notice-detail-body"><div class="notice-times">${field('saleStart','销售开始','time')}${field('saleEnd','销售结束','time')}${field('lastClose','末日截止','time')}</div>${text('channels','发行渠道')}${doc.rows.some(r=>r.purchaseChannels)?`<div class="notice-channel-check"><p>说明书购买渠道：</p>${[...new Set(doc.rows.map(r=>r.purchaseChannels).filter(Boolean))].map(channel=>`<p>${e(channel)}</p>`).join('')}<label class="checkbox-line"><input type="checkbox" id="noticeChannelReviewed" ${config.channelReviewed?'checked':''}>已核对说明书与本次发行渠道</label></div>`:''}${text('region','发行区域')}</div></details>
         <details><summary>通用附件 <span>${config.commonAttachments.length} 项</span></summary><div class="notice-detail-body"><div id="noticeCommonAttachments">${attachments()}</div><button class="text-button" type="button" data-notice-add>＋ 新增通用附件</button><p class="notice-setting-hint">每只产品的说明书及风险揭示书另行自动追加；这里编排通知中的附件名称。</p></div></details>
         <details><summary>固定正文与制度依据</summary><div class="notice-detail-body">${field('rule','行内制度依据')}<p class="notice-setting-hint">正文沿用发行通知模板，可按本次发行需要修改。花括号内的字段会自动填入。</p>${Object.entries(PARAGRAPH_LABELS).map(([key,label])=>`<label class="notice-field">${label}<textarea rows="4" data-notice-paragraph="${key}">${e(config.paragraphs[key])}</textarea></label>`).join('')}</div></details>
       </aside>`:''}
@@ -36,12 +36,13 @@ export function mountNotice(root,{state,issue,editable,onChange,onError,onDownlo
   }
   root.oninput=event=>{
     if(!editable)return;const t=event.target;
-    if(t.hasAttribute('data-notice-field'))config[t.dataset.noticeField]=t.value;
+    if(t.hasAttribute('data-notice-field')){config[t.dataset.noticeField]=t.value;if(t.dataset.noticeField==='channels'){config.channelReviewed=false;const check=root.querySelector('#noticeChannelReviewed');if(check)check.checked=false;}}
     else if(t.hasAttribute('data-notice-paragraph'))config.paragraphs[t.dataset.noticeParagraph]=t.value;
     else if(t.hasAttribute('data-notice-attachment'))config.commonAttachments[Number(t.dataset.noticeAttachment)]=t.value;
     else return;
     update();
   };
+  root.onchange=event=>{if(editable&&event.target.id==='noticeChannelReviewed'){config.channelReviewed=event.target.checked;update();}};
   root.onclick=async event=>{
     const b=event.target.closest('button');if(!b)return;
     if(b.hasAttribute('data-notice-sources')){const sources=root.querySelector('#noticeSources');sources.open=true;sources.scrollIntoView({behavior:'smooth',block:'start'});return;}

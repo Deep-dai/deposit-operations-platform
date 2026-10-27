@@ -36,7 +36,7 @@ export function noticeRows(state,issue){
     if(!code)throw Error(`${v.name}缺少产品代码，请核对金市回传资料`);
     if(v.marketNumber&&p.marketNumber&&v.marketNumber!==p.marketNumber)throw Error(`${v.name}的说明书产品代码与回传代码不一致`);
     if(!v.name?.trim()||!dateValid(v.start)||!dateValid(v.end)||v.start>v.end)throw Error('说明书中的产品名称或募集日期不完整');
-    return {id,name:v.name,code,start:v.start,end:v.end};
+    return {id,name:v.name,code,start:v.start,end:v.end,sourceId:p.prospectusSource?.id||'',purchaseChannels:p.prospectusSource?.extras?.purchaseChannels||''};
   });
 }
 
@@ -82,7 +82,9 @@ export function noticeText(doc){
 export function saveNotice(state,issue,config=noticeConfig(issue),{record=false}={}){
   if(issue.status!=='draft')throw Error('已下发通知不能修改');
   const document=buildNoticeDocument(state,issue,config);
-  issue.notice={version:NOTICE_VERSION,config:clone(config),document};issue.material=noticeText(document);
+  const savedConfig=clone(config);
+  if(issue.notice&&(issue.notice.config.channels!==config.channels||issue.notice.document.sourceFingerprint!==document.sourceFingerprint))savedConfig.channelReviewed=false;
+  issue.notice={version:NOTICE_VERSION,config:savedConfig,document};issue.material=noticeText(document);
   issue.confirmed=false;delete issue.noticeSnapshot;
   if(record)issue.history.unshift({time:now(),action:'保存发行通知',note:`依据金市回传说明书要素，纳入 ${document.rows.length} 只产品及 ${document.attachments.length} 项附件`});
   return document;
@@ -97,6 +99,7 @@ export function noticeErrors(state,issue){
   for(const [key,label] of [['saleStart','销售开始时间'],['saleEnd','销售结束时间'],['lastClose','末日截止时间']])if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(config[key]))errors.push(`请填写有效的${label}`);
   if(config.saleStart>=config.saleEnd||config.saleEnd>config.lastClose)errors.push('销售开始、销售结束和末日截止时间的先后关系不正确');
   if(!config.channels.trim()||!config.region.trim()||!config.rule.trim())errors.push('请补全发行渠道、区域及制度依据');
+  if(doc.rows.some(r=>r.purchaseChannels)&&!config.channelReviewed)errors.push('请核对说明书购买渠道与本次发行通知渠道，并勾选确认');
   if(Object.values(config.paragraphs).some(v=>!String(v).trim()))errors.push('模板正文各段不能为空');
   if(Object.values(doc.body).some(v=>/\{[^{}]+\}/.test(v)))errors.push('模板正文包含无法填充的变量，请检查花括号中的字段名称');
   if(config.commonAttachments.some(name=>!name.trim()))errors.push('附件名称不能为空，请填写名称或移除该项');
