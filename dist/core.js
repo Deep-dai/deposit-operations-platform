@@ -62,6 +62,18 @@ export function compare(p){
  return COMPARE_FIELDS.filter(([k])=>p.type==='rolling'||!['observeStart','observeEnd'].includes(k)).map(([key,label])=>({key,label,a:p.approved[key]??'',b:p.market[key]??'',c:p.prospectus[key]??'',ok:comparisonValue(p.approved,key)===comparisonValue(p.market,key)&&comparisonValue(p.market,key)===comparisonValue(p.prospectus,key)}));
 }
 export function eligible(p){return !!(p && p.status==='ready' && p.approved && p.market && p.prospectus && compare(p).length>0 && compare(p).every(r=>r.ok));}
+export function issueProductAvailability(state){
+ const assignments=new Map();
+ for(const issue of state.issues.filter(i=>i.status==='draft'))for(const id of issue.productIds)if(!assignments.has(id))assignments.set(id,issue);
+ const result={available:[],reserved:[],processing:[],issued:[]};
+ for(const product of state.products){
+  if(product.status==='issued')result.issued.push(product);
+  else if(assignments.has(product.id))result.reserved.push({product,issue:assignments.get(product.id)});
+  else if(eligible(product))result.available.push(product);
+  else result.processing.push(product);
+ }
+ return result;
+}
 export function transition(state,id,action,{role='manager',note='',difference=false}={}){
  const p=state.products.find(x=>x.id===id); if(!p)throw Error('未找到申报');
  const must=(statuses,who)=>{if(!statuses.includes(p.status))throw Error('当前状态不能执行此操作');if(role!==who)throw Error(`请切换至${ROLES[who]}办理`);};

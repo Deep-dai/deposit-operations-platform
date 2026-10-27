@@ -2,6 +2,7 @@ import {blankProduct,clone,days} from './core.js';
 
 // Synthetic product fixtures for the prototype, not current bank offers or quoted rates.
 const BUNDLE='poster-products-20261026-v1';
+const AVAILABLE_BUNDLE='available-products-20261027-v1';
 export const COLLECTION_ISSUE_ID='FX-20261026-001';
 const SERIES_ID='2026年C';
 const CREATED='2026-10-26 09:30';
@@ -74,5 +75,38 @@ export function ensureAdditionalProducts(state) {
   }
   state.series.push(series);state.products.unshift(...products);state.issues.unshift(issue);
   state.dataMigrations=[...(state.dataMigrations||[]),BUNDLE];
+  return true;
+}
+
+// A separate, unassigned pool keeps "new issuance" usable without changing existing batches.
+export function availableProductFixtures(){
+  const {products,series}=additionalProductFixtures(),created='2026-10-27 17:30';
+  series.id='2026年D';series.name='智信接续滚存系列';series.created=created;series.fixtureBundle=AVAILABLE_BUNDLE;
+  for(const [index,p]of products.entries()){
+    const code=`D${10001+index}`,oldCode=`C${String(9001+index).padStart(5,'0')}`;
+    for(const record of [p,p.approved,p.market,p.prospectus]){
+      record.id=`SB-20261027-${String(index+201).padStart(4,'0')}`;
+      record.name=record.name.replace(oldCode,code);
+      record.marketNumber=`P26${code}`;
+      record.created=created;record.updated=created;record.fixtureBundle=AVAILABLE_BUNDLE;
+      if(record.type==='rolling')record.seriesId=series.id;
+    }
+    p.history.forEach(event=>event.time=created);
+  }
+  return {products,series};
+}
+
+export function ensureAvailableProducts(state){
+  if(state.dataMigrations?.includes(AVAILABLE_BUNDLE))return false;
+  const {products,series}=availableProductFixtures();
+  // An ID collision never authorizes replacing a user's data.
+  if(products.some(p=>state.products.some(existing=>existing.id===p.id)))return false;
+  if(state.series.some(s=>s.id===series.id)){
+    const base=series.id;let suffix=1;while(state.series.some(s=>s.id===`${base}-${suffix}`))suffix++;
+    series.id=`${base}-${suffix}`;
+    for(const p of products.filter(p=>p.type==='rolling'))for(const record of [p,p.approved,p.market,p.prospectus])record.seriesId=series.id;
+  }
+  state.products.unshift(...products);state.series.push(series);
+  state.dataMigrations=[...(state.dataMigrations||[]),AVAILABLE_BUNDLE];
   return true;
 }
