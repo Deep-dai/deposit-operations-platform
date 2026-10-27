@@ -43,3 +43,47 @@
 
 /* Keep the long-poster preview visible while reviewing many products. */
 @media(min-width:741px){.issue-grid:has(.poster-workspace)>.card{overflow:visible}.poster-preview-pane{position:sticky;top:16px;align-self:start}}
+
+.issue-grid:has(.notice-workspace){grid-template-columns:minmax(0,1fr)}
+.issue-grid:has(.notice-workspace)>.stack{display:grid;grid-template-columns:1fr 1fr;align-items:start}
+.notice-toolbar{padding:18px 24px;border-bottom:1px solid var(--line);background:#fff;display:flex;gap:16px;align-items:center;justify-content:space-between}
+.notice-toolbar strong,.notice-preview-heading strong{display:block;font-size:13px;font-weight:600}
+.notice-toolbar small,.notice-preview-heading small{display:block;margin-top:3px;color:var(--muted);font-size:11px}
+.notice-save-status{font-size:10px;color:#789086;white-space:nowrap}
+.notice-workspace{display:grid;grid-template-columns:310px minmax(0,1fr);background:#fff}
+.notice-workspace.notice-readonly{grid-template-columns:1fr}
+.notice-settings{padding:22px;border-right:1px solid var(--line);min-width:0}
+.notice-settings h3{margin:0 0 16px;font-size:13px;font-weight:600}
+.notice-field{display:block;font-size:11px;color:#6f818b;margin-bottom:14px}
+.notice-field input,.notice-field textarea{display:block;margin-top:6px;font-size:12px;color:var(--ink)}
+.notice-field textarea{resize:vertical;min-height:68px;line-height:1.7}
+.notice-field-pair{display:grid;grid-template-columns:1fr 1.15fr;gap:10px}
+.notice-settings details{border-top:1px solid var(--line);padding:14px 0}
+.notice-settings summary,.notice-sources summary{font-size:12px;font-weight:500;cursor:pointer}
+.notice-settings summary span{float:right;font-size:10px;color:var(--muted)}
+.notice-detail-body{padding-top:15px}.notice-times{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.notice-times input{padding:8px 4px;font-size:11px}
+.notice-setting-hint{font-size:11px;line-height:1.8;color:var(--muted);margin:8px 0 14px}
+.notice-attachment-edit{position:relative;padding-bottom:18px}.notice-attachment-edit .text-button{position:absolute;right:0;bottom:12px;font-size:10px}
+.notice-preview-pane{background:#f4f5f6;padding:22px;min-width:0}
+.notice-preview-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.notice-validation{font-size:11px;color:#608378;background:#eef5f1;border:1px solid #dfeae3;padding:9px 12px;border-radius:5px;margin-bottom:16px;line-height:1.8}
+.notice-validation-warning{color:#9f713c;background:#fff7ea;border-color:#eedfc8}
+.notice-paper{background:#fff;color:#151515;padding:36px 38px;max-width:850px;margin:0 auto;box-shadow:0 3px 12px #2535410b;font:15px/2.05 "FangSong","仿宋_GB2312","Songti SC","SimSun",serif;overflow-wrap:anywhere}
+.notice-paper h1{font-family:"STSong","Songti SC","SimSun",serif;color:#111;font-size:23px;text-align:center;line-height:1.55;margin:0 0 28px;font-weight:600}
+.notice-paper p{margin:0;text-indent:2em;white-space:pre-wrap}
+.notice-paper .notice-addressee{text-indent:0}
+.notice-paper h2,.notice-paper h3{margin:0;font-size:15px;line-height:2.05;color:#111}
+.notice-paper h2{font-family:"STHeiti","SimHei",sans-serif;font-weight:600;text-indent:2em}
+.notice-paper h3{font-family:"Kaiti SC","KaiTi",serif;text-indent:2em;font-weight:600}
+.notice-product-table{width:100%;white-space:normal;table-layout:fixed;border:1px solid #555;border-collapse:collapse;font:11px/1.6 "Songti SC","SimSun",serif;margin:6px 0}
+.notice-product-table th,.notice-product-table td{border:1px solid #555;color:#111;text-align:center;padding:6px 5px;font-size:11px;background:white;font-weight:400;overflow-wrap:anywhere}
+.notice-product-table th:first-child{width:18%}.notice-product-table th:nth-child(2){width:42%}.notice-product-table th:nth-child(3),.notice-product-table th:nth-child(4){width:20%}
+.notice-product-table tbody tr:hover{background:white}
+.notice-attachments{margin-top:28px}.notice-attachments p{display:grid;grid-template-columns:3em 1.5em minmax(0,1fr);text-indent:0;padding-left:2em;line-height:1.9}
+.notice-signoff{margin-top:28px;text-align:right;padding-right:2em}.notice-signoff p{text-indent:0}
+.notice-sources{padding:18px 24px;background:#fff;border-top:1px solid var(--line)}
+.notice-source-intro{font-size:11px;color:var(--muted);line-height:1.8;margin:16px 0}
+.notice-legacy-hint{font-size:12px;line-height:1.8;color:#75878f;margin:20px 25px 0;padding:12px 16px;background:#fff;border:1px solid var(--line);border-radius:5px}
+@media(max-width:1100px){.notice-workspace{grid-template-columns:270px minmax(0,1fr)}.notice-settings{padding:18px}.notice-preview-pane{padding:16px}.notice-paper{padding:28px 24px;font-size:14px}.notice-paper h1{font-size:21px}}
+@media(max-width:740px){.notice-workspace{grid-template-columns:1fr}.notice-settings{border-right:0;border-bottom:1px solid var(--line)}.notice-toolbar{padding:16px;flex-wrap:wrap}.notice-toolbar>.flex{width:100%;justify-content:flex-end}.notice-preview-pane{padding:12px}.notice-paper{padding:24px 16px;font-size:13px}.notice-paper h1{font-size:19px}.notice-paper h2,.notice-paper h3{font-size:13px}.notice-product-table th,.notice-product-table td{font-size:10px;padding:5px 3px}.issue-grid:has(.notice-workspace)>.stack{grid-template-columns:1fr}.notice-preview-heading{align-items:flex-start}.notice-times input{font-size:12px;padding:8px}.notice-save-status{margin-right:auto}.notice-sources{padding:16px}}
