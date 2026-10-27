@@ -62,6 +62,16 @@ export function compare(p){
  return COMPARE_FIELDS.filter(([k])=>p.type==='rolling'||!['observeStart','observeEnd'].includes(k)).map(([key,label])=>({key,label,a:p.approved[key]??'',b:p.market[key]??'',c:p.prospectus[key]??'',ok:comparisonValue(p.approved,key)===comparisonValue(p.market,key)&&comparisonValue(p.market,key)===comparisonValue(p.prospectus,key)}));
 }
 export function eligible(p){return !!(p && p.status==='ready' && p.approved && p.market && p.prospectus && compare(p).length>0 && compare(p).every(r=>r.ok));}
+export function marketReturnPreview(state,id,{role='manager'}={}){
+ const p=state.products.find(p=>p.id===id);
+ if(role!=='manager')throw Error('请切换至产品经理');
+ if(!p||p.status!=='market'||!p.approved)throw Error('仅能接收金市办理中的已复核申报');
+ const errors=validate({...p,...p.approved},state,{ignoreId:p.id});if(errors.length)throw Error('已复核要素不完整：'+errors[0].message);
+ const marketNumber=p.marketNumber||`CP-${p.id.replace(/^SB-/,'')}`;
+ const values=Object.fromEntries(COMPARE_FIELDS.filter(([key])=>p.type==='rolling'||!['observeStart','observeEnd'].includes(key)).map(([key])=>[key,p.approved[key]??'']));
+ const market={...clone(values),marketNumber},prospectus={...clone(values),marketNumber};
+ return {marketNumber,market,prospectus};
+}
 export function issueProductAvailability(state){
  const assignments=new Map();
  for(const issue of state.issues.filter(i=>i.status==='draft'))for(const id of issue.productIds)if(!assignments.has(id))assignments.set(id,issue);
@@ -80,12 +90,12 @@ export function transition(state,id,action,{role='manager',note='',difference=fa
  if(action==='submit'){must(['draft','returned'],'manager');const errors=validate(p,state,{ignoreId:p.id});if(errors.length)throw Error(errors[0].message);p.status='review';p.version=(p.version||0)+1;p.market=null;p.prospectus=null;p.approved=null;log(p,'提交复核',`申报版本 V${p.version}`,role);}
  else if(action==='approve'){must(['review'],'reviewer');p.approved=clone(p);delete p.approved.history;p.status='market';log(p,'复核通过',note||'同意本次申报；已送交金市办理',role);if(p.firstPeriod){const s=state.series.find(x=>x.id===p.seriesId);s.status='active';}}
  else if(action==='return'){must(['review'],'reviewer');if(!note.trim())throw Error('请填写退回意见');p.status='returned';log(p,'退回修改',note,role);}
- else if(action==='receive'){must(['market'],'manager');p.market=clone(p.approved);p.prospectus=clone(p.approved);if(difference)p.prospectus.high=String((Number(p.approved.high||p.approved.low)+0.1).toFixed(2));p.marketNumber=`CP-${p.id.slice(-6)}`;p.status='check';log(p,'金市回传',difference?'已回传最终要素及含一处差异的说明书':'已回传最终要素及说明书');}
+ else if(action==='receive'){must(['market'],'manager');const result=marketReturnPreview(state,id,{role});p.market=result.market;p.prospectus=result.prospectus;p.marketNumber=result.marketNumber;p.prospectusSource=null;p.marketReturnSource={type:'preset',receivedAt:now()};if(difference)p.prospectus.high=String((Number(p.approved.high||p.approved.low)+0.1).toFixed(2));p.status='check';log(p,'金市回传',difference?'已回传最终要素及含一处差异的说明书要素':'已接收产品编号、最终要素及说明书要素；待一致性校验');}
  else if(action==='check'){must(['check'],'manager');const diff=compare(p).filter(r=>!r.ok);if(!compare(p).length)throw Error('缺少比对资料');p.status=diff.length?'difference':'ready';log(p,'一致性校验',diff.length?`发现 ${diff.length} 项差异，已阻断材料生成`:'申报、金市最终要素及说明书一致');}
  else if(action==='correct'){must(['difference'],'manager');if(!note.trim())throw Error('请填写反馈意见');log(p,'反馈金市修正',note);p.status='market';p.market=null;p.prospectus=null;}
  else if(action==='revise'){must(['difference'],'manager');if(!note.trim())throw Error('请填写调整原因');p.status='returned';p.market=null;p.prospectus=null;p.approved=null;log(p,'业务要素调整',note+'；修改后须重新提交复核');}
  else throw Error('不支持的操作');
- if(p.prospectus===null)p.prospectusSource=null;
+ if(p.prospectus===null){p.prospectusSource=null;p.marketReturnSource=null;}
  p.updated=now(); return p;
 }
 export function createProduct(state,data,{draft=false,newSeries=false}={}){

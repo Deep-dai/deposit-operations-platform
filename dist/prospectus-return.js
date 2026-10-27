@@ -24,6 +24,7 @@ export function applyReturn(state,id,payload,source){
  const p=validateReturn(state,id,payload);
  if(!source?.id||source.hash!==payload.result.hash)throw Error('说明书原件尚未保存');
  p.market=clone(payload.market);p.prospectus=clone(payload.document);p.marketNumber=payload.market.marketNumber;
+ p.marketReturnSource={type:'file',receivedAt:now()};
  p.prospectusSource={...source,extras:clone(payload.result.extras),evidence:clone(payload.result.evidence),
    manualFields:sourceFields(p).map(([key])=>key).filter(key=>!Object.hasOwn(payload.result.fields,key)),reviewedAt:now()};
  p.status='check';p.updated=now();log(p,'金市回传',`已接收 ${source.name}，原文识别及人工补充分别留存；待一致性校验`);return p;
