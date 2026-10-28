@@ -9,7 +9,7 @@ export function posterConfig(issue) {
   const order=[...new Set([...(saved.order||[]),...issue.productIds])].filter(id=>issue.productIds.includes(id));
   return {template:POSTER_TEMPLATES[saved.template]?saved.template:(order.length===1?'single':'collection'),
     order, selectedIds:(saved.selectedIds||order).filter(id=>order.includes(id)),
-    singleId:order.includes(saved.singleId)?saved.singleId:order[0], supplements:copy(saved.supplements||{})};
+    singleId:order.includes(saved.singleId)?saved.singleId:order[0],consumerProtectionNumber:String(saved.consumerProtectionNumber||''),supplements:copy(saved.supplements||{})};
 }
 
 export function rateText(product, separator='或') {
@@ -20,13 +20,15 @@ export function rateText(product, separator='或') {
   }).join(separator);
 }
 
-export function posterDimensions(template,count) {
-  if(template==='single')return {width:1620,height:2880};
-  return {width:1080,height:640+428*count+264};
+export function posterDimensions(template,count,{consumerProtectionNumber=''}={}) {
+  if(template==='single')return {width:1620,height:2880+(consumerProtectionNumber?64:0)};
+  return {width:1080,height:640+428*count+264+(consumerProtectionNumber?48:0)};
 }
 
 export function buildPosterModel(state,issue,config=posterConfig(issue)) {
   if(issue.status==='sent'&&issue.posterSnapshot)return copy(issue.posterSnapshot);
+  const consumerProtectionNumber=String(config.consumerProtectionNumber||'').trim();
+  if(consumerProtectionNumber.length>60)throw Error('消保编号最多 60 字');
   const ids=config.template==='single'?[config.singleId]:config.order.filter(id=>config.selectedIds.includes(id));
   if(!ids.length)throw Error('请至少选择一只海报产品');
   if(ids.length>12)throw Error('单张合集最多放入 12 只产品，请分批选择');
@@ -46,7 +48,7 @@ export function buildPosterModel(state,issue,config=posterConfig(issue)) {
     return product;
   });
   const families=[...new Set(products.map(p=>p.family))];
-  return {version:1,template:config.template,seriesLabel:families.length===1?`乐赢${families[0]}系列`:'结构性存款系列',products,...posterDimensions(config.template,products.length)};
+  return {version:1,template:config.template,consumerProtectionNumber,seriesLabel:families.length===1?`乐赢${families[0]}系列`:'结构性存款系列',products,...posterDimensions(config.template,products.length,{consumerProtectionNumber})};
 }
 
 export function updatePosterConfig(issue,config) {

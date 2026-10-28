@@ -12,6 +12,8 @@
 .issuance-preparation strong{font-size:12px;font-weight:600}
 .issuance-preparation p{margin:3px 0 0;color:var(--muted);font-size:12px}
 .issue-row-actions{display:flex;justify-content:flex-end;align-items:center;gap:16px;white-space:nowrap}
+.recipient-section+.recipient-section{margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}
+.recipient-section h3{font-size:12px;font-weight:500;color:#71828b;margin:0 0 12px}
 .issue-candidate-summary{display:flex;gap:12px 24px;flex-wrap:wrap;padding:14px 0 0;color:var(--muted);font-size:12px}
 .issue-candidate-summary b{color:var(--ink);font-size:18px;margin-left:5px}
 .issue-candidate-table{max-height:350px;overflow:auto;border:1px solid var(--line);border-radius:6px}

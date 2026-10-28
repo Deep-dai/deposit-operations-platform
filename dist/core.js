@@ -1,6 +1,7 @@
 export const STATUS = {draft:'草稿',returned:'退回修改',review:'待复核',market:'金市办理中',check:'待一致性校验',difference:'差异待处理',ready:'待发行',issued:'已下发'};
 export const ROLES = {manager:'产品经理',reviewer:'产品复核岗',branch:'分行用户'};
 export const BRANCHES = ['北京分行','上海分行','广州分行','深圳分行','杭州分行','南京分行'];
+export const KNOWLEDGE_BASE = '总行知识库';
 export const RATE_KEYS = ['low','mid','high'];
 export const COMMON_KEYS = ['family','structure','underlying','currency'];
 export const COMPARE_FIELDS = [['name','产品名称'],['family','产品系列'],['structure','产品结构'],['currency','币种'],['underlying','挂钩标的'],['start','募集起始日'],['end','募集结束日'],['value','起息日'],['maturity','到期日'],['tenor','期限（天）'],['observeStart','期初观测日'],['observeEnd','到期观测日'],['low','低收益率（%）'],['mid','中收益率（%）'],['high','高收益率（%）'],['quota','额度（万元）'],['minimum','起存金额'],['minimumUnit','起存金额单位']];
@@ -118,13 +119,15 @@ export function createIssue(state,ids,title){
  if(state.issues.some(i=>i.status==='draft'&&i.productIds.some(id=>ids.includes(id))))throw Error('所选产品已加入未完成的发行，请继续办理原发行');
  const issue={id:uid('FX'),title,productIds:ids,status:'draft',created:now(),material:'',confirmed:false,recipients:[],history:[{time:now(),action:'创建发行',note:`纳入 ${ids.length} 只产品`}]};state.issues.unshift(issue);return issue;
 }
-export function sendIssue(state,id,recipients,{simulateFailure=false}={}){
+export function sendIssue(state,id,recipients){
  const issue=state.issues.find(i=>i.id===id);if(!issue||issue.status!=='draft')throw Error('发行状态已变更');
  if(!issue.material||!issue.confirmed)throw Error('请生成并确认发行材料');
- if(!recipients.length)throw Error('请选择接收分行');
+ const targets=[...new Set(recipients)];
+ if(!targets.length)throw Error('请选择接收分行或总行知识库');
+ if(targets.some(name=>!BRANCHES.includes(name)&&name!==KNOWLEDGE_BASE))throw Error('下发对象无效');
  if(issue.productIds.some(id=>!eligible(state.products.find(p=>p.id===id))))throw Error('产品当前不满足发行条件');
- issue.recipients=recipients.map((name,i)=>({name,status:simulateFailure&&i===recipients.length-1?'failed':'sent',read:false,time:now(),attempts:1}));issue.status='sent';issue.sentAt=now();
- issue.history.unshift({time:now(),action:'下发',note:`${recipients.length} 家分行，${issue.recipients.filter(r=>r.status==='failed').length} 家失败`});
+ issue.recipients=targets.map(name=>({name,type:name===KNOWLEDGE_BASE?'knowledge':'branch',status:'sent',read:false,time:now(),attempts:1}));issue.status='sent';issue.sentAt=now();
+ issue.history.unshift({time:now(),action:'下发成功',note:`${targets.length} 个接收对象：${targets.join('、')}`});
  issue.productIds.forEach(id=>{const p=state.products.find(p=>p.id===id);p.status='issued';p.updated=now();log(p,'发行材料已下发',issue.title);});return issue;
 }
 function sample(n,status,type='ordinary',extra={}){

@@ -42,3 +42,22 @@ test('下发快照不受后续工作数据变化影响，已下发配置不可�
  const read=buildPosterModel(state,issue);read.products[0].name='mutated';assert.deepEqual(buildPosterModel(state,issue),snapshot);
  assert.throws(()=>updatePosterConfig(issue,posterConfig(issue)),/不能修改/);
 });
+
+test('消保编号按整张海报保存，两种模板预留编号位置，修改后重新确认',()=>{
+ const {state,issue}=fixture();assert.equal(posterConfig(issue).consumerProtectionNumber,'');
+ for(const template of ['single','collection']){
+  const config=posterConfig(issue);config.template=template;config.consumerProtectionNumber='  消保审字20261028-001  ';issue.confirmed=true;
+  updatePosterConfig(issue,config);const model=buildPosterModel(state,issue);
+  assert.equal(model.consumerProtectionNumber,'消保审字20261028-001');assert.equal(issue.confirmed,false);
+  assert.equal(model.height,template==='single'?2944:1808);assert.equal(posterConfig(JSON.parse(JSON.stringify(issue))).consumerProtectionNumber,config.consumerProtectionNumber);
+ }
+ const invalid=posterConfig(issue);invalid.consumerProtectionNumber='长'.repeat(61);assert.throws(()=>buildPosterModel(state,issue,invalid),/60/);
+});
+
+test('下发后消保编号冻结，旧海报快照仍可原样读取',()=>{
+ const {state,issue}=fixture(),config=posterConfig(issue);config.consumerProtectionNumber='XB-20261028-001';updatePosterConfig(issue,config);
+ issue.material='通知';issue.confirmed=true;const snapshot=buildPosterModel(state,issue);sendIssue(state,issue.id,['北京分行']);issue.posterSnapshot=clone(snapshot);
+ issue.poster.consumerProtectionNumber='已被修改';assert.equal(buildPosterModel(state,issue).consumerProtectionNumber,'XB-20261028-001');
+ const legacy=clone(snapshot);delete legacy.consumerProtectionNumber;legacy.height-=48;issue.posterSnapshot=legacy;
+ assert.deepEqual(buildPosterModel(state,issue),legacy);
+});

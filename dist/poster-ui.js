@@ -4,7 +4,7 @@ import {renderPoster,posterBlob} from './poster-renderer.js';
 const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 export function mountPoster(root,{state,issue,editable,onChange,onError}) {
   let config=posterConfig(issue), ticket=0, timer;
-  if(issue.posterSnapshot){config.template=issue.posterSnapshot.template;}
+  if(issue.posterSnapshot){config.template=issue.posterSnapshot.template;config.consumerProtectionNumber=issue.posterSnapshot.consumerProtectionNumber||'';}
   const product=id=>state.products.find(p=>p.id===id);
   const save=()=>{updatePosterConfig(issue,config);onChange();};
   const supplementary=(id)=>config.supplements[id]||{};
@@ -15,6 +15,8 @@ export function mountPoster(root,{state,issue,editable,onChange,onError}) {
       <div class="poster-settings">
         <div class="poster-section-title">海报样式</div>
         <div class="poster-template-options">${Object.entries(POSTER_TEMPLATES).map(([key,label])=>`<button type="button" class="poster-template ${key===config.template?'selected':''}" data-poster-template="${key}" aria-pressed="${key===config.template}" ${editable?'':'disabled'}><span class="poster-thumb ${key}"></span><strong>${label}</strong><small>${key==='single'?'单只产品 · 品牌竖版':'多只产品 · 卡片长图'}</small></button>`).join('')}</div>
+        <label class="poster-field">消保编号（选填）<input aria-label="消保编号" data-poster-consumer-number maxlength="60" value="${esc(config.consumerProtectionNumber)}" placeholder="填写本张海报的消保编号" ${editable?'':'readonly'}></label>
+        <p class="poster-hint">填写后显示在海报底部，随图片一同导出。</p>
         <div class="poster-section-title">${config.template==='single'?'选择产品':'产品与排列顺序'}</div>
         ${config.template==='single'?`<label class="poster-field">海报产品<select aria-label="海报产品" data-poster-single ${editable?'':'disabled'}>${config.order.map(id=>`<option value="${esc(id)}" ${id===config.singleId?'selected':''}>${esc(product(id)?.market?.name)}</option>`).join('')}</select></label>`:
         `<div class="poster-order">${config.order.map((id,index)=>`<div class="poster-order-row"><label class="checkbox-line"><input type="checkbox" data-poster-select="${esc(id)}" ${config.selectedIds.includes(id)?'checked':''} ${editable?'':'disabled'}><span>${esc(product(id)?.market?.name)}</span></label>${editable?`<div class="poster-order-actions"><button type="button" data-poster-move="${esc(id)}" data-direction="-1" aria-label="上移${esc(product(id)?.market?.name)}" ${index===0?'disabled':''}>↑</button><button type="button" data-poster-move="${esc(id)}" data-direction="1" aria-label="下移${esc(product(id)?.market?.name)}" ${index===config.order.length-1?'disabled':''}>↓</button></div>`:''}</div>`).join('')}</div><p class="poster-hint">按勾选产品顺序生成，最多 12 只。</p>`}
@@ -74,7 +76,11 @@ export function mountPoster(root,{state,issue,editable,onChange,onError}) {
     if(target.hasAttribute('data-poster-select')){const id=target.dataset.posterSelect;config.selectedIds=target.checked?[...config.selectedIds,id]:config.selectedIds.filter(value=>value!==id);save();panel();}
   };
   root.oninput=event=>{
-    if(!editable||!event.target.dataset.posterExtra)return;
+    if(!editable)return;
+    if(event.target.hasAttribute('data-poster-consumer-number')){
+      config.consumerProtectionNumber=event.target.value;save();clearTimeout(timer);timer=setTimeout(preview,160);return;
+    }
+    if(!event.target.dataset.posterExtra)return;
     const target=event.target,id=target.dataset.product;
     config.supplements[id]={...supplementary(id),[target.dataset.posterExtra]:target.value};save();
     clearTimeout(timer);timer=setTimeout(preview,160);

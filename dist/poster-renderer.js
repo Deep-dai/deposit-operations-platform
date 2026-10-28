@@ -11,11 +11,11 @@ function source(template) {
   });
   return assets[template];
 }
-function text(ctx,value,x,y,width,size,color='#252525',weight=400,align='left') {
+function text(ctx,value,x,y,width,size,color='#252525',weight=400,align='left',minimumSize=16) {
   const str=String(value??'');
   ctx.textBaseline='top';ctx.textAlign=align;ctx.fillStyle=color;
   ctx.font=`${weight} ${size}px ${fonts}`;
-  while(ctx.measureText(str).width>width&&size>16){size-=.5;ctx.font=`${weight} ${size}px ${fonts}`;}
+  while(ctx.measureText(str).width>width&&size>minimumSize){size-=.5;ctx.font=`${weight} ${size}px ${fonts}`;}
   if(ctx.measureText(str).width>width)throw Error('产品文字过长，请核对产品名称或挂钩说明');
   ctx.fillText(str,x,y);
 }
@@ -79,7 +79,12 @@ export async function renderPoster(canvas,model) {
   if(!ctx)throw Error('当前浏览器不支持图片生成');
   ctx.imageSmoothingQuality='high';
   if(model.template==='single')drawSingle(ctx,img,model.products[0]);else drawCollection(ctx,img,model);
-  canvas.setAttribute('aria-label',`${model.template==='single'?'单产品海报':'产品合集'}：${model.products.map(p=>p.name).join('、')}`);
+  if(model.consumerProtectionNumber){
+    const single=model.template==='single',height=single?64:48,padding=single?90:46;
+    ctx.fillStyle=single?'#fff':'#f7efef';ctx.fillRect(0,model.height-height,model.width,height);
+    text(ctx,`消保编号：${model.consumerProtectionNumber}`,model.width-padding,model.height-height+(single?18:13),model.width-padding*2,single?27:21,'#777',400,'right',14);
+  }
+  canvas.setAttribute('aria-label',`${model.template==='single'?'单产品海报':'产品合集'}：${model.products.map(p=>p.name).join('、')}${model.consumerProtectionNumber?'；消保编号：'+model.consumerProtectionNumber:''}`);
   return canvas;
 }
 
