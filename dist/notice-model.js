@@ -1,5 +1,6 @@
 import {clone,compare,dateValid,now} from './core.js';
 import {isDirectMaterials,directNoticeRows,directNoticeDefaults} from './direct-materials.js';
+import {noticeTextStyle,noticeTitleLayout,attachmentLayout,signoffLayout,noticeLayoutErrors} from './notice-layout.js';
 
 export const NOTICE_VERSION=1;
 export const COMMON_ATTACHMENTS=[
@@ -105,6 +106,7 @@ export function noticeErrors(state,issue){
   if(Object.values(config.paragraphs).some(v=>!String(v).trim()))errors.push('模板正文各段不能为空');
   if(Object.values(doc.body).some(v=>/\{[^{}]+\}/.test(v)))errors.push('模板正文包含无法填充的变量，请检查花括号中的字段名称');
   if(config.commonAttachments.some(name=>!name.trim()))errors.push('附件名称不能为空，请填写名称或移除该项');
+  errors.push(...noticeLayoutErrors(doc,chineseDate(config.date)));
   if(issue.material!==noticeText(doc))errors.push('通知正文与已保存版本不一致，请重新生成');
   return [...new Set(errors)];
 }
@@ -112,13 +114,14 @@ export function assertNoticeReady(state,issue){const errors=noticeErrors(state,i
 export function noticeDocument(issue){return clone(issue.status==='sent'?(issue.noticeSnapshot||issue.notice?.document):issue.notice?.document);}
 export const escapeHTML=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function noticeHTML(doc){
-  const e=escapeHTML,b=doc.body,paragraph=(text,cls='')=>`<p class="${cls}">${e(text)}</p>`;
+  const e=value=>escapeHTML(noticeTextStyle(value)),b=doc.body,paragraph=(text,cls='')=>String(text).split(/\r?\n/).map(line=>`<p class="${cls}">${e(line)||'&nbsp;'}</p>`).join('');
   const heading=(text,secondary=false)=>`<h${secondary?3:2}>${text}</h${secondary?3:2}>`;
-  return `<h1>${e(doc.title)}</h1>${paragraph(`${doc.addressee}：`,'notice-addressee')}${paragraph(b.intro)}
+  const sign=signoffLayout(doc.issuer,chineseDate(doc.date));
+  return `<h1>${noticeTitleLayout(doc.title).lines.map(e).join('<br>')}</h1>${paragraph(`${doc.addressee}：`,'notice-addressee')}${paragraph(b.intro)}
     ${heading('一、产品发行安排及产品概况')}${paragraph(b.schedule)}
     <table class="notice-product-table"><thead><tr><th>产品代码</th><th>产品名称</th><th>募集起始日</th><th>募集结束日</th></tr></thead><tbody>${doc.rows.map(r=>`<tr><td>${e(r.code)}</td><td>${e(r.name)}</td><td><time title="${e(r.start)}">${shortDate(r.start)}</time></td><td><time title="${e(r.end)}">${shortDate(r.end)}</time></td></tr>`).join('')}</tbody></table>
     ${heading('二、发行渠道')}${paragraph(doc.channels)}${heading('三、发行区域')}${paragraph(doc.region)}${heading('四、营销要点')}${paragraph(b.marketing)}
     ${heading('（一）额度分配和维护',true)}${paragraph(b.quota)}${heading('（二）营销宣传',true)}${paragraph(b.promotion)}${heading('（三）其它要求',true)}${paragraph(b.reporting)}${paragraph(b.printing)}${paragraph('特此通知。')}
-    <div class="notice-attachments">${doc.attachments.map((a,index)=>`<p><span>${index===0?'附件：':''}</span><span>${index+1}.</span><span>${e(a.name)}</span></p>`).join('')}</div>
-    <div class="notice-signoff">${paragraph(doc.issuer)}${paragraph(chineseDate(doc.date)||'〔请填写成文日期〕')}</div>`;
+    ${doc.attachments.length?`<div class="notice-attachments">${attachmentLayout(doc.attachments).map(a=>`<p style="margin-left:${a.nameEm}em;text-indent:-${a.hangingEm}em">${e(a.prefix+a.name)}</p>`).join('')}</div>`:''}
+    <div class="notice-signoff"><p style="margin-right:${Math.max(0,sign.issuerRightChars/100)}em">${e(sign.issuer)}</p><p style="margin-right:4em">${e(sign.date||'〔请填写成文日期〕')}</p></div>`;
 }

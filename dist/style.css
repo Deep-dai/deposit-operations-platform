@@ -164,3 +164,17 @@
 @media(max-width:740px){.direct-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.direct-name{grid-column:1/-1}.direct-entry{padding:16px}.new-issue-options{max-width:calc(100vw - 40px)}}
 
 .direct-file-name{display:block;margin-top:5px;overflow-wrap:anywhere}
+
+/* Notice preview follows the same proportions as the formal Word layout. */
+.notice-preview-pane{container-type:inline-size}
+.notice-paper{max-width:none;width:100%;min-height:141.43cqi;padding:15.95238% 11.90476% 15.47619% 12.38095%;font-family:"仿宋_GB2312","FangSong","STFangsong","Songti SC","SimSun",serif;font-size:2.687831cqi;line-height:1.84375;box-sizing:border-box}
+.notice-paper h1{font-family:"方正小标宋简体","FZXiaoBiaoSong-B05S","STSong","Songti SC","SimSun",serif;font-size:1.375em;font-weight:400;line-height:1.34090909;margin:0 0 .81818182em;overflow-wrap:normal}
+.notice-paper p{font-size:1em;line-height:1.84375;margin:0;text-align:justify;text-indent:2em;white-space:pre-wrap}
+.notice-paper .notice-addressee{text-align:left;text-indent:0}
+.notice-paper h2,.notice-paper h3{font-size:1em;line-height:1.84375;text-indent:2em;margin:0;font-weight:400}
+.notice-paper h2{font-family:"黑体","SimHei","Heiti SC",sans-serif}.notice-paper h3{font-family:"楷体_GB2312","KaiTi","Kaiti SC",serif}
+.notice-product-table{font-size:.75em;line-height:1.5;font-family:"宋体","SimSun","Songti SC",serif}
+.notice-product-table th,.notice-product-table td{font:inherit;line-height:1.5;padding:.291667em .333333em;font-weight:400;vertical-align:middle}
+.notice-product-table th:first-child{width:14.4204%}.notice-product-table th:nth-child(2){width:52.4126%}.notice-product-table th:nth-child(3),.notice-product-table th:nth-child(4){width:16.5835%}
+.notice-attachments{margin-top:1.84375em}.notice-attachments p{display:block;padding:0;text-align:left;line-height:1.84375}
+.notice-signoff{padding:0;margin-top:1.84375em}.notice-signoff p{text-align:right;text-indent:0}
