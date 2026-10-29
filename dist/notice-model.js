@@ -1,4 +1,5 @@
 import {clone,compare,dateValid,now} from './core.js';
+import {isDirectMaterials,directNoticeRows,directNoticeDefaults} from './direct-materials.js';
 
 export const NOTICE_VERSION=1;
 export const COMMON_ATTACHMENTS=[
@@ -23,11 +24,12 @@ export function noticeConfig(issue){
   return {title:'',addressee:'各分行零售银行部',issuer:'财富管理部',date:'',
     rule:'信银规章〔2025〕343号',saleStart:'08:00',saleEnd:'17:30',lastClose:'21:00',
     channels:'柜面、网银、手机银行、智慧柜台。',region:'上述产品将在全行发售。',
-    ...clone(saved),paragraphs:{...NOTICE_PARAGRAPHS,...clone(saved.paragraphs||{})},
+    ...(isDirectMaterials(issue)?directNoticeDefaults(issue):{}),...clone(saved),paragraphs:{...NOTICE_PARAGRAPHS,...clone(saved.paragraphs||{})},
     commonAttachments:clone(saved.commonAttachments??COMMON_ATTACHMENTS)};
 }
 
 export function noticeRows(state,issue){
+  if(isDirectMaterials(issue))return directNoticeRows(issue);
   if(!issue.productIds.length)throw Error('本次发行没有产品');
   return issue.productIds.map(id=>{
     const p=state.products.find(p=>p.id===id);

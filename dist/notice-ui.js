@@ -1,3 +1,4 @@
+import {isDirectMaterials} from './direct-materials.js';
 import {noticeConfig,noticeDocument,saveNotice,noticeErrors,noticeHTML,escapeHTML as e,PARAGRAPH_LABELS} from './notice-model.js';
 
 export function mountNotice(root,{state,issue,editable,onChange,onError,onDownload}){
@@ -7,7 +8,7 @@ export function mountNotice(root,{state,issue,editable,onChange,onError,onDownlo
   const attachments=()=>config.commonAttachments.map((name,index)=>`<div class="notice-attachment-edit"><label class="notice-field">通用附件 ${index+1}<input aria-label="通用附件 ${index+1}" data-notice-attachment="${index}" value="${e(name)}"></label><button class="text-button" type="button" data-notice-remove="${index}" aria-label="移除通用附件 ${index+1}">移除</button></div>`).join('');
   function panel(){
     const doc=noticeDocument(issue);if(!doc)return;
-    root.innerHTML=`<div class="notice-toolbar"><div><strong>发行通知模板</strong><small>产品信息取自已通过一致性校验的金市回传说明书要素</small></div><div class="flex"><span class="notice-save-status" id="noticeSaveStatus">已保存</span>${editable?'<button type="button" class="btn" data-notice-save>保存通知</button>':''}<button type="button" class="btn primary" data-notice-download>下载通知</button></div></div>
+    root.innerHTML=`<div class="notice-toolbar"><div><strong>发行通知模板</strong><small>${isDirectMaterials(issue)?'产品信息取自本次上传的说明书及补充信息':'产品信息取自已通过一致性校验的金市回传说明书要素'}</small></div><div class="flex"><span class="notice-save-status" id="noticeSaveStatus">已保存</span>${editable?'<button type="button" class="btn" data-notice-save>保存通知</button>':''}<button type="button" class="btn primary" data-notice-download>下载通知</button></div></div>
       <div class="notice-workspace ${editable?'':'notice-readonly'}">${editable?`<aside class="notice-settings">
         <h3>本次通知</h3>${field('title','通知标题','text','placeholder="留空时按产品期次自动生成"')}${field('addressee','主送单位')}
         <div class="notice-field-pair">${field('issuer','发文单位')}${field('date','成文日期','date')}</div>
@@ -17,12 +18,12 @@ export function mountNotice(root,{state,issue,editable,onChange,onError,onDownlo
       </aside>`:''}
       <div class="notice-preview-pane"><div class="notice-preview-heading"><div><strong>通知预览</strong><small>${doc.rows.length} 只产品 · ${doc.attachments.length} 项附件</small></div><button type="button" class="text-button" data-notice-sources>核对取数来源 ↓</button></div><div id="noticeValidation" class="notice-validation" role="status"></div><article class="notice-paper" id="noticePreview">${noticeHTML(doc)}</article></div>
       </div>
-      <details class="notice-sources" id="noticeSources"><summary>取数来源与附件核对 · ${doc.rows.length} 只产品</summary><div class="notice-source-intro">产品代码、名称及募集日期取自金市回传资料，需通过申报、最终要素与说明书一致性校验。此处展示回传要素；原始说明书独立作为附件。</div><div class="table-wrap"><table><thead><tr><th>产品代码</th><th>产品名称</th><th>募集起始日</th><th>募集结束日</th><th>来源</th></tr></thead><tbody>${doc.rows.map(r=>`<tr><td>${e(r.code)}</td><td>${e(r.name)}</td><td>${e(r.start)}</td><td>${e(r.end)}</td><td><button class="text-button" data-action="prospectus" data-id="${e(r.id)}">查看说明书要素</button></td></tr>`).join('')}</tbody></table></div><div class="notice-source-intro">通用附件 ${config.commonAttachments.length} 项；产品说明书及风险揭示书 ${doc.rows.length} 项。附件清单只列名称，不代表原件已上传。</div></details>`;
+      <details class="notice-sources" id="noticeSources"><summary>取数来源与附件核对 · ${doc.rows.length} 只产品</summary><div class="notice-source-intro">${isDirectMaterials(issue)?'产品代码、名称及募集日期取自本次上传的说明书及补充信息。原始说明书已保存在当前浏览器。':'产品代码、名称及募集日期取自金市回传资料，需通过申报、最终要素与说明书一致性校验。此处展示回传要素；原始说明书独立作为附件。'}</div><div class="table-wrap"><table><thead><tr><th>产品代码</th><th>产品名称</th><th>募集起始日</th><th>募集结束日</th><th>来源</th></tr></thead><tbody>${doc.rows.map(r=>`<tr><td>${e(r.code)}</td><td>${e(r.name)}</td><td>${e(r.start)}</td><td>${e(r.end)}</td><td><button class="text-button" data-action="prospectus" data-id="${e(r.id)}">查看说明书要素</button></td></tr>`).join('')}</tbody></table></div><div class="notice-source-intro">通用附件 ${config.commonAttachments.length} 项；产品说明书及风险揭示书 ${doc.rows.length} 项。附件清单只列名称，不代表原件已上传。</div></details>`;
     validation();
   }
   function validation(){
     const errors=issue.status==='sent'?[]:noticeErrors(state,issue),box=root.querySelector('#noticeValidation');
-    box.textContent=errors.length?errors.join('；'):'产品表及附件已生成，请核对通知、说明书和海报后确认下发。';
+    box.textContent=errors.length?errors.join('；'):isDirectMaterials(issue)?'产品表及附件清单已生成，可下载通知和海报。':'产品表及附件已生成，请核对通知、说明书和海报后确认下发。';
     box.classList.toggle('notice-validation-warning',!!errors.length);
     root.querySelector('[data-notice-download]').disabled=!!errors.length;
   }

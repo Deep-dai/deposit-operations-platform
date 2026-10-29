@@ -75,7 +75,7 @@ export function marketReturnPreview(state,id,{role='manager'}={}){
 }
 export function issueProductAvailability(state){
  const assignments=new Map();
- for(const issue of state.issues.filter(i=>i.status==='draft'))for(const id of issue.productIds)if(!assignments.has(id))assignments.set(id,issue);
+ for(const issue of state.issues.filter(i=>i.status==='draft'&&i.mode!=='materials'))for(const id of issue.productIds)if(!assignments.has(id))assignments.set(id,issue);
  const result={available:[],reserved:[],processing:[],issued:[]};
  for(const product of state.products){
   if(product.status==='issued')result.issued.push(product);
@@ -121,6 +121,7 @@ export function createIssue(state,ids,title){
 }
 export function sendIssue(state,id,recipients){
  const issue=state.issues.find(i=>i.id===id);if(!issue||issue.status!=='draft')throw Error('发行状态已变更');
+ if(issue.mode==='materials')throw Error('直接制作的发行材料仅供下载，不支持下发');
  if(!issue.material||!issue.confirmed)throw Error('请生成并确认发行材料');
  const targets=[...new Set(recipients)];
  if(!targets.length)throw Error('请选择接收分行或总行知识库');

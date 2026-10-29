@@ -1,11 +1,12 @@
 import {POSTER_TEMPLATES,posterConfig,buildPosterModel,updatePosterConfig,rateText} from './poster-model.js';
 import {renderPoster,posterBlob} from './poster-renderer.js';
+import {issueProduct} from './direct-materials.js';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 export function mountPoster(root,{state,issue,editable,onChange,onError}) {
   let config=posterConfig(issue), ticket=0, timer;
   if(issue.posterSnapshot){config.template=issue.posterSnapshot.template;config.consumerProtectionNumber=issue.posterSnapshot.consumerProtectionNumber||'';}
-  const product=id=>state.products.find(p=>p.id===id);
+  const product=id=>issueProduct(state,issue,id);
   const save=()=>{updatePosterConfig(issue,config);onChange();};
   const supplementary=(id)=>config.supplements[id]||{};
   const chosen=()=>config.template==='single'?[config.singleId]:config.order.filter(id=>config.selectedIds.includes(id));

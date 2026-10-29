@@ -1,4 +1,5 @@
 import {compare} from './core.js';
+import {isDirectMaterials,issueProduct,materialFieldErrors} from './direct-materials.js';
 
 const copy = value => JSON.parse(JSON.stringify(value));
 const filled = value => value !== '' && value !== null && value !== undefined;
@@ -34,8 +35,10 @@ export function buildPosterModel(state,issue,config=posterConfig(issue)) {
   if(ids.length>12)throw Error('单张合集最多放入 12 只产品，请分批选择');
   const products=ids.map(id=>{
     if(!issue.productIds.includes(id))throw Error('海报产品须属于本次发行');
-    const p=state.products.find(product=>product.id===id);
-    if(!p||!['ready','issued'].includes(p.status)||!compare(p).length||compare(p).some(row=>!row.ok))throw Error('产品尚未通过一致性校验，不能生成海报');
+    const p=issueProduct(state,issue,id);
+    if(isDirectMaterials(issue)){
+      const errors=materialFieldErrors(p.market);if(errors.length)throw Error(errors[0]);
+    }else if(!p||!['ready','issued'].includes(p.status)||!compare(p).length||compare(p).some(row=>!row.ok))throw Error('产品尚未通过一致性校验，不能生成海报');
     const final=p.market, extra=config.supplements[id]||{};
     const product={id,name:final.name,code:p.marketNumber||final.marketNumber||'',family:final.family,
       currency:final.currency,underlying:final.underlying,tenor:final.tenor,
@@ -48,7 +51,7 @@ export function buildPosterModel(state,issue,config=posterConfig(issue)) {
     return product;
   });
   const families=[...new Set(products.map(p=>p.family))];
-  return {version:1,template:config.template,consumerProtectionNumber,seriesLabel:families.length===1?`乐赢${families[0]}系列`:'结构性存款系列',products,...posterDimensions(config.template,products.length,{consumerProtectionNumber})};
+  return {version:1,template:config.template,consumerProtectionNumber,seriesLabel:families.length===1&&families[0]?`乐赢${families[0]}系列`:'结构性存款系列',products,...posterDimensions(config.template,products.length,{consumerProtectionNumber})};
 }
 
 export function updatePosterConfig(issue,config) {
