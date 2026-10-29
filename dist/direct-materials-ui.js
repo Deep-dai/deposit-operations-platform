@@ -14,7 +14,7 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
   const value=entry.fields[key]??'',type=['start','end','value','maturity'].includes(key)?'date':['tenor','low','mid','high'].includes(key)?'number':'text';
   const choices=key==='family'?['智信','慧信']:key==='currency'?['人民币','美元']:null;
   const options=choices?`<option value="">请选择</option>${choices.map(v=>`<option value="${e(v)}" ${v===value?'selected':''}>${e(v)}</option>`).join('')}`:'';
-  const control=choices?`<select data-direct-field="${key}" data-entry="${index}">${options}</select>`:`<input type="${type}" data-direct-field="${key}" data-entry="${index}" value="${e(value)}" ${type==='number'?'min="0" step="any"':''}>`;
+  const control=choices?`<select data-direct-field="${key}" data-entry="${index}">${options}</select>`:`<input type="${type}" data-direct-field="${key}" data-entry="${index}" value="${e(value)}" ${key==='underlying'?'placeholder="未识别时请按说明书补充"':''} ${type==='number'?'min="0" step="any"':''}>`;
   return `<label class="direct-field ${key==='name'?'direct-name':''}">${label}${['family','low','mid','high'].includes(key)?'':' <span class="required">*</span>'}${control}</label>`;
  };
  function renderEntries(){

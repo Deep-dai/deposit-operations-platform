@@ -4,6 +4,27 @@ const datePattern='(20\\d{2})年(\\d{1,2})月(\\d{1,2})日';
 const iso=match=>`${match[1]}-${match[2].padStart(2,'0')}-${match[3].padStart(2,'0')}`;
 const own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
 export const normalizeName=value=>compact(value).replace(/[（]/g,'(').replace(/[）]/g,')');
+function underlyingRow(basic){
+  // Read the table value between field labels, not a whitelist of asset names.
+  // Stop before payoff prose: its references to an underlying are not table rows.
+  const table=basic.split(/结构性存款利率确定方式|产品收益率确定方式|购买渠道/)[0];
+  const nextLabel=/(?:联系|挂钩)标的(?:定义|观察日)|产品结构要素(?:信息)?|定盘价格|期初价格|期末价格|基础利率|收益区间|基础计息天数/;
+  const currencies='欧元|澳元|美元|英镑|日元|人民币|离岸人民币|在岸人民币|瑞士法郎|加元|港元|港币|新西兰元|新西兰币';
+  const pair=new RegExp(`^(${currencies})/(${currencies})$`);
+  const rows=[];
+  for(const match of table.matchAll(/(?:联系|挂钩)标的(?!定义|观察日|的):?/g)){
+    const tail=table.slice(match.index+match[0].length),end=tail.search(nextLabel);
+    if(end<0)continue; // Without a next label, the row boundary is unverified.
+    const raw=tail.slice(0,end),value=raw.replace(/^[“"「『]+|[”"」』]+$/g,'');
+    // Do not swallow another row, a page header, an empty placeholder or prose.
+    if(!value||value.length>40||/[\n:，。；;]|联系标的|挂钩标的|期末价格|期初价格/.test(value)||/^(?:未提供|未披露|不适用|待定|[-—/]+)$/.test(value))continue;
+    rows.push({value:value.replace(pair,'$1兑$2'),quote:match[0]+raw});
+  }
+  const values=[...new Set(rows.map(row=>row.value))];
+  if(values.length===1)return rows[0];
+  if(values.length>1)return {warning:'挂钩标的出现多个不同取值，未自动填入，请对照原文核实。'};
+  return null;
+}
 export function parseProspectus(pages){
   const normalized=pages.map(p=>({...p,text:compact(p.text)}));
   const all=normalized.map(p=>p.text).join('\n'),fields={},evidence={},warnings=[],errors=[],extras={};
@@ -34,8 +55,9 @@ export function parseProspectus(pages){
   for(const [key,label] of [['observeStart','期初价格'],['observeEnd','联系标的观察日']]){
     const match=basic.match(new RegExp(label+':'+datePattern));if(match)set(key,iso([null,...match.slice(1,4)]),match[0]);
   }
-  const underlying=basic.match(/联系标的((?:欧元|澳元|美元|英镑|日元|人民币|瑞士法郎|加元)\/(?:欧元|澳元|美元|英镑|日元|人民币|瑞士法郎|加元)|黄金)/);
-  if(underlying)set('underlying',underlying[1].replace('/','兑'),underlying[0]);
+  const underlying=underlyingRow(basic);
+  if(underlying?.value)set('underlying',underlying.value,underlying.quote,'以标的字段及下一字段定位取值；货币对分隔符统一为“兑”，其他名称保留原文');
+  if(underlying?.warning)warnings.push(underlying.warning);
   const currency=basic.match(/本金与收益币种均为(人民币|美元)/);if(currency)set('currency',currency[1],currency[0]);
   const min=basic.match(/初始认购金额不低于([\d.]+)(万元|元)/);
   if(min){set('minimum',String(Number(min[1])*(min[2]==='万元'?10000:1)),min[0],'统一换算为元');set('minimumUnit','元',min[0],'统一换算为元');}
@@ -56,7 +78,7 @@ export function parseProspectus(pages){
   if(time){extras.saleStart=time[1].padStart(2,'0')+':'+time[2];extras.saleEnd=time[3].padStart(2,'0')+':'+time[4];}
   const last=basic.match(/募集期最后一天交易截止时间为(\d{1,2}):(\d{2})/);if(last)extras.lastClose=last[1].padStart(2,'0')+':'+last[2];
   const channel=basic.match(/购买渠道(.+?)(?:质押条款|税收条款|费用)/);if(channel){extras.purchaseChannels=channel[1];extras.channelPage=normalized.find(p=>p.text.includes(channel[1]))?.page??null;warnings.push('说明书购买渠道需与本次发行通知渠道核对，不自动扩展为全部渠道。');}
-  for(const [key,label]of Object.entries({name:'产品名称',marketNumber:'产品代码',start:'募集起始日',end:'募集结束日',value:'起息日',maturity:'到期日',tenor:'期限'}))if(!own(fields,key))warnings.push(`未识别字段：${label}`);
+  for(const [key,label]of Object.entries({name:'产品名称',marketNumber:'产品代码',underlying:'挂钩标的',start:'募集起始日',end:'募集结束日',value:'起息日',maturity:'到期日',tenor:'期限'}))if(!own(fields,key))warnings.push(`未识别字段：${label}`);
   if(fields.value&&fields.maturity&&fields.tenor&&Math.round((Date.parse(fields.maturity)-Date.parse(fields.value))/86400000)!==Number(fields.tenor))errors.push('说明书期限与起息日、到期日间隔不一致，请核对。');
   return {fields,evidence,extras,warnings,errors};
 }

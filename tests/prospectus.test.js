@@ -26,6 +26,40 @@ test('通用协议、多个产品代码及日期期限矛盾均不能当作可�
  const multi=pages();multi[0].text+=' 产品编码P26C00902';assert.ok(parseProspectus(multi).errors.some(s=>s.includes('代码不一致')));
  const wrong=pages();wrong[1].text=wrong[1].text.replace('31 天','30 天');assert.ok(parseProspectus(wrong).errors.some(s=>s.includes('期限')));
 });
+test('按标的字段边界读取伦敦金及其他标的，保留原文名称与取数页码',()=>{
+ for(const [row,expected] of [
+  ['联系标的 伦敦金\n联系标的定义 伦敦黄金，表示为一盎司黄金的美元标价','伦敦金'],
+  ['联系标的：伦敦黄金\n联系标的定义 黄金的美元报价','伦敦黄金'],
+  ['联系标的：黄金\n联系标的定义 黄金价格','黄金'],
+  ['挂钩标的：“伦敦金”\n挂钩标的定义 黄金的美元报价','伦敦金'],
+  ['联系标的 新西兰元／美元','新西兰元兑美元'],
+  ['挂钩标的：美元/日元','美元兑日元'],
+  ['联系标的 中证测试指数','中证测试指数'],
+  ['联系标的 伦敦金（XAU/USD）','伦敦金(XAU/USD)']
+ ]){
+  const input=pages();input[2].text=input[2].text.replace('联系标的 澳元/美元',row).replace('基础利率','如因节假日无法获得联系标的的定盘价格，则使用前一交易日的定盘价格。\n基础利率');
+  const result=parseProspectus(input);assert.equal(result.fields.underlying,expected,row);
+  assert.equal(result.evidence.underlying.page,4);assert.match(result.evidence.underlying.quote,/标的/);
+  assert.equal(result.evidence.underlying.quote.includes('定义'),false);
+ }
+});
+test('标的字段缺失、空值、未知边界或取值冲突时明确提示，不从名称、定义或收益情景猜测',()=>{
+ for(const row of ['',
+  '联系标的\n联系标的定义 伦敦黄金，表示为一盎司黄金的美元标价',
+  '联系标的 待定\n联系标的定义 待金市确认',
+  '联系标的 伦敦金。下面是其他内容',
+  '联系标的 伦敦金\n联系标的定义 伦敦黄金\n联系标的 欧元/美元\n联系标的定义 欧元兑美元汇率'
+ ]){
+  const input=pages();input[0].text=input[0].text.replace('汇率挂钩','黄金挂钩');input[1].text=input[1].text.replace('汇率挂钩','黄金挂钩');
+  input[2].text=input[2].text.replace('联系标的 澳元/美元',row).replace('基础利率','如因节假日无法获得联系标的的定盘价格，则使用前一交易日的定盘价格。\n基础利率');
+  input[3].text=input[3].text.replace('（1）','（1）联系标的“伦敦金”');
+  const result=parseProspectus(input);assert.equal(result.fields.underlying,undefined,row);assert.equal(result.evidence.underlying,undefined);
+  assert.ok(result.warnings.includes('未识别字段：挂钩标的'));
+  if(row.includes('欧元/美元'))assert.ok(result.warnings.some(message=>message.includes('多个不同取值')));
+ }
+ const noBoundary=pages();noBoundary[2].text=noBoundary[2].text.split('联系标的')[0]+'联系标的 伦敦金';
+ assert.equal(parseProspectus(noBoundary).fields.underlying,undefined);
+});
 test('仅有收益区间时不擅自补齐中档收益，复杂档位也不套三档',()=>{
  const input=pages();input[3].text='购买渠道 网点等渠道 质押条款 可质押 四、投资团队';const result=parseProspectus(input);
  assert.equal(result.fields.low,undefined);assert.equal(result.fields.mid,undefined);assert.ok(result.warnings.some(s=>s.includes('收益档位')));
