@@ -1,4 +1,6 @@
 import {ensureOperations,visibleOperations,OP_TYPES} from './operations-model.js';
+import {ensureRollingSales} from './rolling-sales.js';
+import {rollingSalesView,mountRollingSales} from './rolling-sales-ui.js';
 import {operationsPage,mountOperations,operationsShortcuts} from './operations-ui.js';
 import {openDirectMaterials} from './direct-materials-ui.js';
 import {isDirectMaterials,issueProduct,MATERIAL_FIELDS} from './direct-materials.js';
@@ -26,7 +28,7 @@ function upgradeStoredLabels(value){
  .replace(/；未实际发送消息/g,'').replace(/模拟/g,'').replace(/样例/g,'');
 }
 if(!state.labelVersion){state=upgradeStoredLabels(state);state.labelVersion=2;}
-ensureAdditionalProducts(state);ensureAvailableProducts(state);ensureOperations(state);
+ensureAdditionalProducts(state);ensureAvailableProducts(state);ensureOperations(state);ensureRollingSales(state);
 let role=sessionStorage.getItem('deposit-demo-role')||'manager';if(!ROLES[role])role='manager';
 let branch=sessionStorage.getItem('deposit-demo-branch')||BRANCHES[0];
 let filters={q:'',type:'',status:'',series:'',from:'',to:''},pageNum=1,detailTab='elements',importData=null,formDirty=false,toastTimer;
@@ -109,8 +111,8 @@ function seriesPage(id){
  if(id){
   const s=state.series.find(x=>x.id===id);if(!s)return empty('未找到系列');
   const ps=state.products.filter(p=>p.type==='rolling'&&p.seriesId===s.id).sort((a,b)=>Number(b.period)-Number(a.period));
-  const latest=Math.max(0,...ps.map(p=>Number(p.period)||0));
-  return title(esc(s.name),`${esc(s.id)} · ${s.status==='active'?'可继续新增期次':'首期尚未复核通过'}`,link('返回滚存产品申报','series','btn','back')+(s.status==='active'&&role==='manager'?link('新增本系列产品',`period/new/${encodeURIComponent(s.id)}`,'btn primary','plus'):''))+`<section class="card"><div class="card-head"><h2>系列共性要素</h2>${badge(s)}</div><div class="card-body kv-grid">${COMMON_KEYS.map(k=>kv(LABELS[k],s[k])).join('')}${kv('最新期次',latest?`第 ${latest} 期`:'暂无期次')}${kv('系列说明',s.note)}</div></section><section class="card spacer" id="seriesProducts"><div class="card-head series-products-head"><div><h2>系列内产品 <span class="count">${ps.length} 期</span></h2><p class="subtitle">展示各期当前申报要素，包含草稿及办理中记录；完整信息及处理意见可进入详情查看。</p></div>${btn('查询本系列申报','series-query','','search',`data-id="${esc(s.id)}"`)}</div>${seriesProductTable(ps)}</section>`;
+  const latest=Math.max(0,...ps.map(p=>Number(p.period)||0)),sales=route()[2]==='sales';
+  return title(esc(s.name),`${esc(s.id)} · ${s.status==='active'?'可继续新增期次':'首期尚未复核通过'}`,link('返回滚存产品申报','series','btn','back')+(s.status==='active'&&role==='manager'?link('新增本系列产品',`period/new/${encodeURIComponent(s.id)}`,'btn primary','plus'):''))+`<section class="card"><div class="card-head"><h2>系列共性要素</h2>${badge(s)}</div><div class="card-body kv-grid">${COMMON_KEYS.map(k=>kv(LABELS[k],s[k])).join('')}${kv('最新期次',latest?`第 ${latest} 期`:'暂无期次')}${kv('系列说明',s.note)}</div></section><section class="card spacer" id="seriesProducts"><div class="card-head series-products-head"><div><h2>系列内产品 <span class="count">${ps.length} 期</span></h2><p class="subtitle">查看各期产品要素、销售来源与到期资金承接情况。</p></div>${btn('查询本系列申报','series-query','','search',`data-id="${esc(s.id)}"`)}</div><div class="sr-view-tabs" role="tablist" aria-label="系列内产品视图"><button id="seriesProductsTab" type="button" role="tab" class="${sales?'':'active'}" data-series-view="products" aria-controls="seriesProductsPanel" aria-selected="${!sales}" tabindex="${sales?-1:0}">产品信息</button><button id="seriesSalesTab" type="button" role="tab" class="${sales?'active':''}" data-series-view="sales" aria-controls="seriesSalesPanel" aria-selected="${sales}" tabindex="${sales?0:-1}">销售与滚存情况</button></div><div id="seriesProductsPanel" role="tabpanel" aria-labelledby="seriesProductsTab" ${sales?'hidden':''}>${seriesProductTable(ps)}</div><div id="seriesSalesPanel" role="tabpanel" aria-labelledby="seriesSalesTab" ${sales?'':'hidden'}>${rollingSalesView(state,s.id)}</div></section>`;
  }
  const actions=role==='manager'?btn('批量导入期次','import','','upload','data-type="rolling"')+btn('系列内新增产品','choose-series','','plus')+link('新增滚存系列','series/new','btn primary','plus'):'';
  return title('滚存产品申报','新增系列及首期产品，或在已生效系列内新增期次；草稿、退回及复核待办请在工作台办理。',actions)+`<div class="series-grid">${state.series.length?state.series.map(s=>{
@@ -173,6 +175,7 @@ function render(){
  document.title=`${$('.page h1')?.textContent||'工作台'} · 存款经营管理台`;
  if(r==='issue'&&$('#materialView'))materialTab(['notice','poster','prospectus'].includes(id)?id:'notice');
  if($('#operationsPage'))mountOperations({state,role,branch,route:route(),save,render,navigate,toast,showModal,closeModal});
+ if(r==='series'&&sub&&$('#seriesSalesPanel'))mountRollingSales({seriesId:sub});
 }
 function showModal(title,body,footer='',wide=false,sub=''){const m=$('#modal');m.className=wide?'wide':'';m.innerHTML=`<div class="modal-head"><div><h2 id="modalTitle">${title}</h2>${sub?`<p>${sub}</p>`:''}</div><button class="toolbar-icon" data-action="close-modal" aria-label="关闭">${icon('close')}</button></div><div class="modal-body">${body}</div>${footer?`<div class="modal-footer">${footer}</div>`:''}`;if(!m.open)m.showModal();}
 function closeModal(){$('#modal').close();importData=null;}
@@ -261,7 +264,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-action]');
  else if(a==='download-notice'){const i=state.issues.find(i=>i.id===id);downloadNotice(i).catch(err=>toast(err.message,true));}
  else if(a==='backup')downloadBlob('存款经营管理台_业务记录.json',JSON.stringify(state,null,2),'application/json');
  else if(a==='reset-confirm')showModal('重置初始数据','重置将清除当前浏览器中的新增申报及办理记录，并恢复初始数据。可先在使用帮助中导出记录。',btn('取消','close-modal')+btn('确认重置','reset','primary'));
- else if(a==='reset'){state=seed();ensureAdditionalProducts(state);ensureAvailableProducts(state);ensureOperations(state);save();closeModal();formDirty=false;filters={q:'',type:'',status:'',series:'',from:'',to:''};navigate('workbench');toast('已恢复初始数据');}
+ else if(a==='reset'){state=seed();ensureAdditionalProducts(state);ensureAvailableProducts(state);ensureOperations(state);ensureRollingSales(state);save();closeModal();formDirty=false;filters={q:'',type:'',status:'',series:'',from:'',to:''};navigate('workbench');toast('已恢复初始数据');}
  else if(a==='export-query'){const ps=state.products.filter(p=>(!filters.q||`${p.name} ${p.id} ${p.marketNumber||''}`.toLowerCase().includes(filters.q.toLowerCase()))&&(!filters.type||p.type===filters.type)&&(!filters.status||p.status===filters.status)&&(!filters.series||p.seriesId===filters.series)&&(!filters.from||p.created.slice(0,10)>=filters.from)&&(!filters.to||p.created.slice(0,10)<=filters.to));workbookDownload([['申报编号','产品名称','类型','滚存系列','期次','申报状态','期限（天）','最近更新'],...ps.map(p=>[p.id,p.name,p.type==='rolling'?'滚存':'普通',p.seriesId,p.period,STATUS[p.status],p.tenor,p.updated])],'申报查询结果.xlsx');}
 }catch(err){toast(err.message,true);}});
 document.addEventListener('submit',e=>{e.preventDefault();if(e.target.id==='queryForm'){const data=Object.fromEntries(new FormData(e.target));if(data.from&&data.to&&data.from>data.to){toast('开始日期不能晚于结束日期',true);return;}filters={q:'',type:'',status:'',series:'',from:'',to:'',...data};pageNum=1;render();}});
