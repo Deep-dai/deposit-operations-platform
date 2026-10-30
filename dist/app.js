@@ -1,3 +1,5 @@
+import {ensureOperations,visibleOperations,OP_TYPES} from './operations-model.js';
+import {operationsPage,mountOperations,operationsShortcuts} from './operations-ui.js';
 import {openDirectMaterials} from './direct-materials-ui.js';
 import {isDirectMaterials,issueProduct,MATERIAL_FIELDS} from './direct-materials.js';
 import {openProspectusIntake} from './prospectus-ui.js';
@@ -24,7 +26,7 @@ function upgradeStoredLabels(value){
  .replace(/；未实际发送消息/g,'').replace(/模拟/g,'').replace(/样例/g,'');
 }
 if(!state.labelVersion){state=upgradeStoredLabels(state);state.labelVersion=2;}
-ensureAdditionalProducts(state);ensureAvailableProducts(state);
+ensureAdditionalProducts(state);ensureAvailableProducts(state);ensureOperations(state);
 let role=sessionStorage.getItem('deposit-demo-role')||'manager';if(!ROLES[role])role='manager';
 let branch=sessionStorage.getItem('deposit-demo-branch')||BRANCHES[0];
 let filters={q:'',type:'',status:'',series:'',from:'',to:''},pageNum=1,detailTab='elements',importData=null,formDirty=false,toastTimer;
@@ -45,6 +47,10 @@ function route(){return (location.hash.slice(1)||'workbench').split('/').map(par
 function breadcrumbs(){
  const [r,sub]=route();
  if(r==='workbench')return `<span>存款经营管理台</span>${icon('chevron')}<b>工作台</b>`;
+ if(['planning','briefs','campaigns','operation'].includes(r)){
+  const type=({planning:'plan',briefs:'brief',campaigns:'campaign'}[r])||state.operations.documents.find(d=>d.id===sub)?.type;
+  const info=OP_TYPES[type];return info?`<span>${info.section}</span>${icon('chevron')}<${r==='operation'?'span':'b'}>${info.name}</${r==='operation'?'span':'b'}>${r==='operation'?icon('chevron')+'<b>材料详情</b>':''}`:'<b>材料详情</b>';
+ }
  const parts=['结构性存款管理'];
  if(!['issuance','issue'].includes(r))parts.push('产品申报管理');
  if(r==='series'||r==='period'){
@@ -59,8 +65,8 @@ function breadcrumbs(){
 }
 function shell(content){
  const [r]=route();
- const nav=(label,to,ic='',cls='')=>`<a class="nav-row ${(r===to||(r==='period'&&to==='series')||(r==='product'&&to==='query')||(r==='issue'&&to==='issuance'))?'current':''} ${cls}" href="#${to}">${ic?icon(ic):''}<span>${label}</span></a>`;
- return `<aside class="sidebar"><a class="brand" href="#workbench"><span class="brand-mark"><img src="assets/brand/operations-mark.png" alt="" width="40" height="40"></span><div><strong>存款经营管理台</strong></div></a><div class="nav-scroll"><div class="nav-section">工作空间</div>${nav('工作台','workbench','grid','primary')}<div class="nav-section">业务管理</div><button class="nav-row primary active" data-action="toggle-nav" aria-expanded="true">${icon('bank')}<span>结构性存款管理</span><span class="arrow">${icon('down')}</span></button><div class="nav-sub" id="businessNav">${role!=='branch'?`<button class="nav-row" data-action="toggle-sub" aria-expanded="true">产品申报管理<span class="arrow">${icon('down')}</span></button><div class="nav-sub">${nav('普通产品申报','ordinary')}${nav('滚存产品申报','series')}${nav('申报查询','query')}</div>`:''}${nav('发行管理','issuance')}</div><div class="nav-section">平台扩展</div><div class="nav-row muted" style="font-size:11px;color:#6b8593">${icon('grid')}其他业务模块预留</div></div></aside><main class="main"><header class="topbar"><button class="toolbar-icon mobile-menu" data-action="mobile-menu" aria-label="展开菜单">${icon('menu')}</button><div class="breadcrumb">${breadcrumbs()}</div><div class="top-actions"><button class="toolbar-icon" data-action="help" aria-label="使用帮助">${icon('help')}</button><div class="role-switch"><span class="avatar">${role==='manager'?'经':role==='reviewer'?'核':'分'}</span><select id="roleSelect" aria-label="当前角色">${Object.entries(ROLES).map(([v,n])=>`<option value="${v}" ${v===role?'selected':''}>${n}</option>`).join('')}</select></div></div></header><div class="page">${content}</div></main>`;
+ const nav=(label,to,ic='',cls='')=>`<a class="nav-row ${(r===to||(r==='period'&&to==='series')||(r==='product'&&to==='query')||(r==='issue'&&to==='issuance')||(r==='operation'&&OP_TYPES[state.operations.documents.find(d=>d.id===route()[1])?.type]?.route===to))?'current':''} ${cls}" href="#${to}">${ic?icon(ic):''}<span>${label}</span></a>`;
+ return `<aside class="sidebar"><a class="brand" href="#workbench"><span class="brand-mark"><img src="assets/brand/operations-mark.png" alt="" width="40" height="40"></span><div><strong>存款经营管理台</strong></div></a><div class="nav-scroll"><div class="nav-section">工作空间</div>${nav('工作台','workbench','grid','primary')}<div class="nav-section">业务管理</div><button class="nav-row primary active" data-action="toggle-nav" aria-expanded="true">${icon('bank')}<span>结构性存款管理</span><span class="arrow">${icon('down')}</span></button><div class="nav-sub" id="businessNav">${role!=='branch'?`<button class="nav-row" data-action="toggle-sub" aria-expanded="true">产品申报管理<span class="arrow">${icon('down')}</span></button><div class="nav-sub">${nav('普通产品申报','ordinary')}${nav('滚存产品申报','series')}${nav('申报查询','query')}</div>`:''}${nav('发行管理','issuance')}</div><button class="nav-row primary" data-action="toggle-sub" aria-expanded="true">${icon('grid')}<span>产品规划管理</span><span class="arrow">${icon('down')}</span></button><div class="nav-sub">${nav('月度产品规划','planning')}</div><button class="nav-row primary" data-action="toggle-sub" aria-expanded="true">${icon('send')}<span>经营推动管理</span><span class="arrow">${icon('down')}</span></button><div class="nav-sub">${nav('经营通报','briefs')}${nav('营销素材','campaigns')}</div></div></aside><main class="main"><header class="topbar"><button class="toolbar-icon mobile-menu" data-action="mobile-menu" aria-label="展开菜单">${icon('menu')}</button><div class="breadcrumb">${breadcrumbs()}</div><div class="top-actions"><button class="toolbar-icon" data-action="help" aria-label="使用帮助">${icon('help')}</button><div class="role-switch"><span class="avatar">${role==='manager'?'经':role==='reviewer'?'核':'分'}</span><select id="roleSelect" aria-label="当前角色">${Object.entries(ROLES).map(([v,n])=>`<option value="${v}" ${v===role?'selected':''}>${n}</option>`).join('')}</select></div></div></header><div class="page">${content}</div></main>`;
 }
 function title(h,sub='',actions='',eye=''){return `<div class="page-title"><div><h1>${h}</h1><p class="subtitle">${sub}</p></div>${actions?`<div class="title-actions">${actions}</div>`:''}</div>`;}
 function empty(h='暂无记录',text='调整筛选条件，或发起一笔新的产品申报。'){return `<div class="empty">${icon('archive')}<h3>${h}</h3><div>${text}</div></div>`;}
@@ -83,7 +89,7 @@ function workbench(){
  const priorities=['returned','difference','draft','check','market','ready'];
  const todo=state.products.filter(p=>role==='reviewer'?p.status==='review':priorities.includes(p.status)).sort((a,b)=>(role==='reviewer'?0:priorities.indexOf(a.status)-priorities.indexOf(b.status))||String(b.updated).localeCompare(String(a.updated)));
  const shortcuts=role==='manager'?`<a class="quick-link" href="#ordinary/new">${icon('plus')}<span>普通产品申报</span></a><a class="quick-link" href="#series">${icon('repeat')}<span>滚存产品申报</span></a>`:'';
- return title('业务工作台','草稿完善、退回修改、产品复核及后续待办集中办理。',role==='manager'?btn('发起产品申报','choose-application','primary','plus'):'')+stats([['待我处理',todo.length,role==='reviewer'?'等待复核确认':'草稿、退回、回传及待发行','clock'],['差异待处理',state.products.filter(p=>p.status==='difference').length,'需核对后继续办理','search'],['申报办理中',state.products.filter(p=>['review','market','check'].includes(p.status)).length,'复核、金市办理与校验','file'],['已完成下发',state.products.filter(p=>p.status==='issued').length,'材料下发记录','send']])+`<div class="dashboard-grid"><div class="stack"><section class="card"><div class="card-head"><h2>待我处理 <span class="count">${todo.length}</span></h2>${link('进入申报查询 →','query','text-button muted')}</div>${productTable(todo,{compact:true})}</section><section class="card"><div class="card-head"><h2>产品办理流程</h2><span class="pill">普通 / 滚存产品共用</span></div>${process('review')}<div class="overview-note">${icon('info')}金市系统回传后进行一致性校验；存在差异时暂停生成发行材料。</div></section></div><div class="stack"><section class="card"><div class="card-head"><h2>快捷入口</h2></div><div class="card-body"><div class="quick-links">${shortcuts}<a class="quick-link" href="#query">${icon('search')}<span>申报状态查询</span></a><a class="quick-link" href="#issuance">${icon('send')}<span>发行管理</span></a></div></div></section><section class="card"><div class="card-head"><h2>发行概况</h2>${icon('send')}</div><div class="card-body info-list"><div class="info-line"><span class="muted">可发行业务产品</span><b>${issueProductAvailability(state).available.length} 只</b></div><div class="info-line"><span class="muted">待完成发行</span><b>${state.issues.filter(i=>i.status==='draft'&&!isDirectMaterials(i)).length} 项</b></div><div class="info-line"><span class="muted">已下发发行记录</span><b>${state.issues.filter(i=>i.status==='sent').length} 项</b></div>${link('进入发行管理 →','issuance','text-button')}</div></section></div></div>`;
+ return title('业务工作台','产品办理、材料制作与分行经营支持集中管理。',role==='manager'?btn('发起产品申报','choose-application','primary','plus'):'')+operationsShortcuts(state,role,branch)+stats([['待我处理',todo.length,role==='reviewer'?'等待复核确认':'草稿、退回、回传及待发行','clock'],['差异待处理',state.products.filter(p=>p.status==='difference').length,'需核对后继续办理','search'],['申报办理中',state.products.filter(p=>['review','market','check'].includes(p.status)).length,'复核、金市办理与校验','file'],['已完成下发',state.products.filter(p=>p.status==='issued').length,'材料下发记录','send']])+`<div class="dashboard-grid"><div class="stack"><section class="card"><div class="card-head"><h2>待我处理 <span class="count">${todo.length}</span></h2>${link('进入申报查询 →','query','text-button muted')}</div>${productTable(todo,{compact:true})}</section><section class="card"><div class="card-head"><h2>产品办理流程</h2><span class="pill">普通 / 滚存产品共用</span></div>${process('review')}<div class="overview-note">${icon('info')}金市系统回传后进行一致性校验；存在差异时暂停生成发行材料。</div></section></div><div class="stack"><section class="card"><div class="card-head"><h2>快捷入口</h2></div><div class="card-body"><div class="quick-links">${shortcuts}<a class="quick-link" href="#query">${icon('search')}<span>申报状态查询</span></a><a class="quick-link" href="#issuance">${icon('send')}<span>发行管理</span></a></div></div></section><section class="card"><div class="card-head"><h2>发行概况</h2>${icon('send')}</div><div class="card-body info-list"><div class="info-line"><span class="muted">可发行业务产品</span><b>${issueProductAvailability(state).available.length} 只</b></div><div class="info-line"><span class="muted">待完成发行</span><b>${state.issues.filter(i=>i.status==='draft'&&!isDirectMaterials(i)).length} 项</b></div><div class="info-line"><span class="muted">已下发发行记录</span><b>${state.issues.filter(i=>i.status==='sent').length} 项</b></div>${link('进入发行管理 →','issuance','text-button')}</div></section></div></div>`;
 }
 function process(status){const stages=[['draft','产品申报'],['review','产品复核'],['market','金市办理'],['check','一致性校验'],['ready','发行材料'],['issued','下发分行']];const actual=status==='returned'?'draft':status==='difference'?'check':status;const index=stages.findIndex(([key])=>key===actual);return `<div class="process">${stages.map(([k,n],i)=>`<div class="process-step ${i<index?'done':i===index?'current':''}"><div class="process-dot">${i<index?icon('check'):i+1}</div>${n}</div>`).join('')}</div>`;}
 function selectOptions(values,selected,emptyLabel){return `${emptyLabel?`<option value="">${emptyLabel}</option>`:''}${values.map(v=>{const [key,label]=Array.isArray(v)?v:[v,v];return `<option value="${esc(key)}" ${String(key)===String(selected)?'selected':''}>${esc(label)}</option>`;}).join('')}`;}
@@ -150,12 +156,13 @@ function notice(i,editable){if(!i.material)return `<div class="notice-start">${i
 
 function render(){
  const [r,sub,id]=route();
- if(role==='branch'&&!['workbench','issuance','issue'].includes(r)){navigate('issuance');return;}
+ if(role==='branch'&&!['workbench','issuance','issue','planning','briefs','campaigns','operation'].includes(r)){navigate('issuance');return;}
  if(r==='period'&&!sub){location.replace('#series');return;}
  let content;
  if(r==='workbench')content=workbench();
  else if(r==='ordinary')content=formPage('ordinary',sub==='edit'?id:'');
  else if(r==='period')content=['new','edit'].includes(sub)?formPage('rolling',sub==='edit'?id:'',sub==='new'?id:''):empty('页面不存在');
+ else if(['planning','briefs','campaigns','operation'].includes(r))content=operationsPage({state,role,branch,route:route()});
  else if(r==='query')content=applicationList();
  else if(r==='series')content=sub==='new'?formPage('rolling','','',true):seriesPage(sub);
  else if(r==='product')content=productDetail(sub);
@@ -165,6 +172,7 @@ function render(){
  $('#app').innerHTML=shell(content);
  document.title=`${$('.page h1')?.textContent||'工作台'} · 存款经营管理台`;
  if(r==='issue'&&$('#materialView'))materialTab(['notice','poster','prospectus'].includes(id)?id:'notice');
+ if($('#operationsPage'))mountOperations({state,role,branch,route:route(),save,render,navigate,toast,showModal,closeModal});
 }
 function showModal(title,body,footer='',wide=false,sub=''){const m=$('#modal');m.className=wide?'wide':'';m.innerHTML=`<div class="modal-head"><div><h2 id="modalTitle">${title}</h2>${sub?`<p>${sub}</p>`:''}</div><button class="toolbar-icon" data-action="close-modal" aria-label="关闭">${icon('close')}</button></div><div class="modal-body">${body}</div>${footer?`<div class="modal-footer">${footer}</div>`:''}`;if(!m.open)m.showModal();}
 function closeModal(){$('#modal').close();importData=null;}
@@ -253,7 +261,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-action]');
  else if(a==='download-notice'){const i=state.issues.find(i=>i.id===id);downloadNotice(i).catch(err=>toast(err.message,true));}
  else if(a==='backup')downloadBlob('存款经营管理台_业务记录.json',JSON.stringify(state,null,2),'application/json');
  else if(a==='reset-confirm')showModal('重置初始数据','重置将清除当前浏览器中的新增申报及办理记录，并恢复初始数据。可先在使用帮助中导出记录。',btn('取消','close-modal')+btn('确认重置','reset','primary'));
- else if(a==='reset'){state=seed();ensureAdditionalProducts(state);ensureAvailableProducts(state);save();closeModal();formDirty=false;filters={q:'',type:'',status:'',series:'',from:'',to:''};navigate('workbench');toast('已恢复初始数据');}
+ else if(a==='reset'){state=seed();ensureAdditionalProducts(state);ensureAvailableProducts(state);ensureOperations(state);save();closeModal();formDirty=false;filters={q:'',type:'',status:'',series:'',from:'',to:''};navigate('workbench');toast('已恢复初始数据');}
  else if(a==='export-query'){const ps=state.products.filter(p=>(!filters.q||`${p.name} ${p.id} ${p.marketNumber||''}`.toLowerCase().includes(filters.q.toLowerCase()))&&(!filters.type||p.type===filters.type)&&(!filters.status||p.status===filters.status)&&(!filters.series||p.seriesId===filters.series)&&(!filters.from||p.created.slice(0,10)>=filters.from)&&(!filters.to||p.created.slice(0,10)<=filters.to));workbookDownload([['申报编号','产品名称','类型','滚存系列','期次','申报状态','期限（天）','最近更新'],...ps.map(p=>[p.id,p.name,p.type==='rolling'?'滚存':'普通',p.seriesId,p.period,STATUS[p.status],p.tenor,p.updated])],'申报查询结果.xlsx');}
 }catch(err){toast(err.message,true);}});
 document.addEventListener('submit',e=>{e.preventDefault();if(e.target.id==='queryForm'){const data=Object.fromEntries(new FormData(e.target));if(data.from&&data.to&&data.from>data.to){toast('开始日期不能晚于结束日期',true);return;}filters={q:'',type:'',status:'',series:'',from:'',to:'',...data};pageNum=1;render();}});
