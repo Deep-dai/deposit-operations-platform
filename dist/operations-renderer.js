@@ -1,7 +1,8 @@
 import {operationGroups,briefStats,opNumber,opRate,opPercent,operationView} from './operations-model.js';
+import {renderMarketingOperation,marketingRibbon} from './operations-marketing-renderer.js';
 const FONT='"PingFang SC","Microsoft YaHei",sans-serif';
 const W=1600,M=72,B=W-M*2;
-const COLORS={red:{main:'#a6292c',dark:'#641c25',soft:'#fff4ed'},navy:{main:'#244858',dark:'#142c39',soft:'#eff5f6'}};
+const COLORS={red:{main:'#b11c28',dark:'#701320',soft:'#fff1da'},navy:{main:'#244858',dark:'#142c39',soft:'#f5f0e5'}};
 const text=(ctx,str,x,y,size=26,color='#273e48',weight=400,align='left')=>{ctx.font=`${weight} ${size}px ${FONT}`;ctx.fillStyle=color;ctx.textBaseline='top';ctx.textAlign=align;ctx.fillText(String(str??''),x,y);};
 function lines(ctx,str,width,size=26,weight=400){
  ctx.font=`${weight} ${size}px ${FONT}`;const result=[];
@@ -60,19 +61,21 @@ function layout(ctx,doc){
 }
 export async function renderOperation(canvas,input){
  await document.fonts.ready;const doc=operationView(input),theme=COLORS[doc.theme]||COLORS.red;
+ if(doc.type==='brief'||doc.type==='campaign')return renderMarketingOperation(canvas,doc);
  canvas.width=W;canvas.height=100;let ctx=canvas.getContext('2d');if(!ctx)throw Error('当前浏览器不支持图片生成');
- const plan=layout(ctx,doc);if(plan.height>16000)throw Error('图片内容过多，请分批制作');canvas.height=plan.height;ctx=canvas.getContext('2d');
- ctx.fillStyle='#f5f3f0';ctx.fillRect(0,0,W,plan.height);
+ const decoration=await marketingRibbon(),plan=layout(ctx,doc);if(plan.height>16000)throw Error('图片内容过多，请分批制作');canvas.height=plan.height;ctx=canvas.getContext('2d');
+ ctx.fillStyle='#fbf6eb';ctx.fillRect(0,0,W,plan.height);
  const gradient=ctx.createLinearGradient(0,0,W,310);gradient.addColorStop(0,theme.dark);gradient.addColorStop(1,theme.main);ctx.fillStyle=gradient;ctx.fillRect(0,0,W,326);
+ ctx.save();ctx.beginPath();ctx.rect(0,0,W,326);ctx.clip();ctx.globalAlpha=.36;ctx.drawImage(decoration,0,-420,W,800);ctx.restore();
  ctx.save();ctx.strokeStyle='#ffffff12';ctx.lineWidth=2;for(let i=0;i<5;i++){ctx.beginPath();ctx.arc(W+100,360,240+i*85,0,Math.PI*2);ctx.stroke();}ctx.restore();
  text(ctx,'存款经营管理台',M,48,25,'#ffffffd9',500);text(ctx,doc.type==='plan'?'月度产品安排':doc.type==='brief'?'经营数据 · 分行推动':'到期表现 · 产品推荐',W-M,48,24,'#ffffffbd',400,'right');
  let titleSize=50,titleLines=lines(ctx,doc.title,B,titleSize,650);while(titleLines.length>2&&titleSize>38){titleSize-=2;titleLines=lines(ctx,doc.title,B,titleSize,650);}if(titleLines.length>2)throw Error('标题过长，请缩短标题后生成');titleLines.forEach((line,i)=>text(ctx,line,M,116+i*64,titleSize,'#fff',650));
  text(ctx,doc.type==='plan'?`${doc.month.replace('-','年')}月 · 产品销售安排`:`数据日期：${doc.date}${doc.type==='brief'?'    单位：'+doc.unit:''}`,M,276,24,'#ffe2cf');
  const cards=specs(doc),cw=(B-32)/3;
- cards.forEach((card,i)=>{const x=M+i*(cw+16);round(ctx,x,354,cw,92,12,'#fff');text(ctx,card.label,x+24,370,21,'#82919a');text(ctx,card.value,x+24,402,31,theme.dark,650);});
+ cards.forEach((card,i)=>{const x=M+i*(cw+16);round(ctx,x,354,cw,92,12,'#fffdf7','#e9d2ae');text(ctx,card.label,x+24,370,21,'#9f8a6f');text(ctx,card.value,x+24,402,31,theme.dark,650);});
  for(const block of plan.blocks){
-  if(block.type==='summary'){round(ctx,M,block.y,B,block.height,12,'#fff');text(ctx,doc.type==='brief'?'经营摘要':'工作提示',M+32,block.y+20,22,theme.main,600);paragraph(ctx,doc.summary,M+32,block.y+58,B-64,26);}
-  if(block.type==='group'){round(ctx,M,block.y,B,46,8,'#e9e4dc');text(ctx,block.name,M+18,block.y+8,26,theme.dark,600);text(ctx,block.count+(doc.type==='plan'?'只产品':'家分行'),W-M-18,block.y+10,22,'#7d817e',400,'right');}
+  if(block.type==='summary'){round(ctx,M,block.y,B,block.height,12,'#fffdf7','#ead5b6');text(ctx,doc.type==='brief'?'经营摘要':'工作提示',M+32,block.y+20,22,theme.main,600);paragraph(ctx,doc.summary,M+32,block.y+58,B-64,26);}
+  if(block.type==='group'){const gold=ctx.createLinearGradient(M,block.y,W-M,block.y);gold.addColorStop(0,'#ecd09e');gold.addColorStop(.5,'#fff2cc');gold.addColorStop(1,'#e2b879');round(ctx,M,block.y,B,46,8,gold,'#dab882');text(ctx,block.name,M+18,block.y+8,26,theme.dark,600);text(ctx,block.count+(doc.type==='plan'?'只产品':'家分行'),W-M-18,block.y+10,22,'#9d7954',400,'right');}
   if(block.type==='row')tableRow(ctx,block.cells,block.widths,block.y,block.height,{...block,theme});
   if(block.type==='title')blockTitle(ctx,block.label,block.y,theme,block.detail);
   if(block.type==='text')text(ctx,block.text,M,block.y,26,'#82919a');
@@ -84,7 +87,7 @@ export async function renderOperation(canvas,input){
    text(ctx,`期限：${p.tenor}天     起存金额：${opNumber(p.minimum,0)}${p.minimumUnit||'元'}`,x+760,rateY+8,25,theme.dark,500);
    text(ctx,`募集期：${p.start} 至 ${p.end}`,x+32,y+block.height-50,25,'#667b86');
   }
-  if(block.type==='footer'){round(ctx,M,block.y,B,block.height,10,'#eae7e1');paragraph(ctx,doc.note,M+24,block.y+22,B-48,23,'#74838b');}
+  if(block.type==='footer'){round(ctx,M,block.y,B,block.height,10,'#f2e7d3');paragraph(ctx,doc.note,M+24,block.y+22,B-48,23,'#987e62');}
  }
  text(ctx,'产品规划 · 经营推动 · 统一下发',M,plan.height-42,20,'#8d979b');text(ctx,'存款经营管理台',W-M,plan.height-42,20,'#8d979b',400,'right');
  canvas.setAttribute('aria-label',`${doc.title}，共${doc.rows.length}条数据`);return canvas;
