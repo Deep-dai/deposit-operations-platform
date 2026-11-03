@@ -1,6 +1,6 @@
 import {POSTER_TEMPLATES,posterConfig,buildPosterModel,updatePosterConfig,rateText} from './poster-model.js';
 import {renderPoster,posterBlob} from './poster-renderer.js';
-import {issueProduct} from './direct-materials.js';
+import {issueProduct,MAX_MATERIAL_PRODUCTS} from './direct-materials.js';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 export function mountPoster(root,{state,issue,editable,onChange,onError}) {
@@ -20,7 +20,7 @@ export function mountPoster(root,{state,issue,editable,onChange,onError}) {
         <p class="poster-hint">填写后显示在海报底部，随图片一同导出。</p>
         <div class="poster-section-title">${config.template==='single'?'选择产品':'产品与排列顺序'}</div>
         ${config.template==='single'?`<label class="poster-field">海报产品<select aria-label="海报产品" data-poster-single ${editable?'':'disabled'}>${config.order.map(id=>`<option value="${esc(id)}" ${id===config.singleId?'selected':''}>${esc(product(id)?.market?.name)}</option>`).join('')}</select></label>`:
-        `<div class="poster-order">${config.order.map((id,index)=>`<div class="poster-order-row"><label class="checkbox-line"><input type="checkbox" data-poster-select="${esc(id)}" ${config.selectedIds.includes(id)?'checked':''} ${editable?'':'disabled'}><span>${esc(product(id)?.market?.name)}</span></label>${editable?`<div class="poster-order-actions"><button type="button" data-poster-move="${esc(id)}" data-direction="-1" aria-label="上移${esc(product(id)?.market?.name)}" ${index===0?'disabled':''}>↑</button><button type="button" data-poster-move="${esc(id)}" data-direction="1" aria-label="下移${esc(product(id)?.market?.name)}" ${index===config.order.length-1?'disabled':''}>↓</button></div>`:''}</div>`).join('')}</div><p class="poster-hint">按勾选产品顺序生成，最多 12 只。</p>`}
+        `<div class="poster-order">${config.order.map((id,index)=>`<div class="poster-order-row"><label class="checkbox-line"><input type="checkbox" data-poster-select="${esc(id)}" ${config.selectedIds.includes(id)?'checked':''} ${editable?'':'disabled'}><span>${esc(product(id)?.market?.name)}</span></label>${editable?`<div class="poster-order-actions"><button type="button" data-poster-move="${esc(id)}" data-direction="-1" aria-label="上移${esc(product(id)?.market?.name)}" ${index===0?'disabled':''}>↑</button><button type="button" data-poster-move="${esc(id)}" data-direction="1" aria-label="下移${esc(product(id)?.market?.name)}" ${index===config.order.length-1?'disabled':''}>↓</button></div>`:''}</div>`).join('')}</div><p class="poster-hint">按勾选产品顺序生成，最多 ${MAX_MATERIAL_PRODUCTS} 只。</p>`}
         ${editable?`<div class="poster-section-title">${config.template==='single'?'补充展示信息':'挂钩说明'}</div>${chosen().map(id=>{
           const p=product(id)?.market||{},extra=supplementary(id),key=config.template==='single'?'risk':'hook';
           return `<div class="poster-supplement"><div class="poster-product-label">${esc(p.name)}</div><label class="poster-field">${key==='risk'?'风险等级（选填）':'挂钩说明'}<input data-poster-extra="${key}" data-product="${esc(id)}" maxlength="${key==='risk'?20:40}" value="${esc(key==='risk'?(extra.risk||''):(extra.hook??`挂钩${p.underlying}`))}" placeholder="${key==='risk'?'按说明书填写，留空不展示':'按说明书填写完整挂钩说明'}"></label></div>`;

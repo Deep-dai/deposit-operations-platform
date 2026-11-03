@@ -31,8 +31,19 @@ test('直接材料复用通知与海报，通知可导出真正Word，不依赖�
  const single=buildPosterModel(state,issue,{...posterConfig(issue),template:'single',singleId:issue.productIds[1],consumerProtectionNumber:'XB-20261029-01'});
  assert.equal(single.products.length,1);assert.equal(single.products[0].code,'P26T10002');assert.equal(single.consumerProtectionNumber,'XB-20261029-01');
 });
+test('20份说明书按调整后顺序进入通知、附件和海报，超过20只拒绝生成',()=>{
+ const state=seed(),entries=Array.from({length:20},(_,i)=>entry(i+1));entries.unshift(entries.pop());[entries[1],entries[2]]=[entries[2],entries[1]];
+ entries[0].fields.name='自动滚存2028F款2号-乐赢智信汇率挂钩人民币结构性存款T10020期';
+ const issue=createDirectMaterials(state,entries),config=noticeConfig(issue);config.date='2026-11-03';config.channelReviewed=true;saveNotice(state,issue,config);
+ const doc=noticeDocument(issue),model=buildPosterModel(state,issue);assert.deepEqual(doc.rows.map(p=>p.code),entries.map(p=>p.fields.marketNumber));
+ assert.deepEqual(doc.attachments.filter(a=>a.kind==='prospectus').map(a=>a.productId),issue.productIds);
+ assert.deepEqual(model.products.map(p=>p.code),doc.rows.map(p=>p.code));assert.equal(model.products.length,20);assert.equal(model.height,9464);
+ const extra=entry(21),last=clone(issue.materialProducts[0]);last.id='EXTRA-21';last.fields=extra.fields;issue.materialProducts.push(last);issue.productIds.push(last.id);
+ assert.throws(()=>buildPosterModel(state,issue,{...posterConfig(issue),selectedIds:[...issue.productIds]}),/最多放入 20/);
+ assert.ok(directBatchErrors([...entries,extra]).some(e=>e.includes('20份')));
+});
 test('缺项、重复产品代码、重复原件、数量越界及原件缺失整批阻断且不写入半成品',()=>{
- for(const prepare of [()=>[],()=>[entry(),entry()],()=>{const a=entry(2);a.fields.marketNumber=entry().fields.marketNumber;return [entry(),a];},()=>{const a=entry();a.fields.maturity='';return [a];},()=>{const a=entry();a.source=null;return [a];},()=>Array.from({length:13},(_,i)=>entry(i+1))]){
+ for(const prepare of [()=>[],()=>[entry(),entry()],()=>{const a=entry(2);a.fields.marketNumber=entry().fields.marketNumber;return [entry(),a];},()=>{const a=entry();a.fields.maturity='';return [a];},()=>{const a=entry();a.source=null;return [a];},()=>Array.from({length:21},(_,i)=>entry(i+1))]){
   const state=seed(),before=clone(state);assert.throws(()=>createDirectMaterials(state,prepare()));assert.deepEqual(state,before);
  }
  assert.ok(materialFieldErrors({...entry().fields,mid:'-1'}).length);

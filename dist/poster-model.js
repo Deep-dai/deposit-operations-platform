@@ -1,5 +1,5 @@
 import {compare} from './core.js';
-import {isDirectMaterials,issueProduct,materialFieldErrors} from './direct-materials.js';
+import {isDirectMaterials,issueProduct,materialFieldErrors,MAX_MATERIAL_PRODUCTS} from './direct-materials.js';
 
 const copy = value => JSON.parse(JSON.stringify(value));
 const filled = value => value !== '' && value !== null && value !== undefined;
@@ -32,7 +32,7 @@ export function buildPosterModel(state,issue,config=posterConfig(issue)) {
   if(consumerProtectionNumber.length>60)throw Error('消保编号最多 60 字');
   const ids=config.template==='single'?[config.singleId]:config.order.filter(id=>config.selectedIds.includes(id));
   if(!ids.length)throw Error('请至少选择一只海报产品');
-  if(ids.length>12)throw Error('单张合集最多放入 12 只产品，请分批选择');
+  if(ids.length>MAX_MATERIAL_PRODUCTS)throw Error(`单张合集最多放入 ${MAX_MATERIAL_PRODUCTS} 只产品，请分批选择`);
   const products=ids.map(id=>{
     if(!issue.productIds.includes(id))throw Error('海报产品须属于本次发行');
     const p=issueProduct(state,issue,id);

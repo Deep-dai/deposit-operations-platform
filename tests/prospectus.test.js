@@ -26,6 +26,20 @@ test('通用协议、多个产品代码及日期期限矛盾均不能当作可�
  const multi=pages();multi[0].text+=' 产品编码P26C00902';assert.ok(parseProspectus(multi).errors.some(s=>s.includes('代码不一致')));
  const wrong=pages();wrong[1].text=wrong[1].text.replace('31 天','30 天');assert.ok(parseProspectus(wrong).errors.some(s=>s.includes('期限')));
 });
+test('自动滚存保留完整本期子产品名称，系列概述不替代本期要素或证据页码',()=>{
+ const input=pages(),name='自动滚存2028F款12号-乐赢智信汇率挂钩人民币结构性存款C00901期';
+ input[0].text=input[0].text.replace('乐赢智信汇率挂钩人民币结构性存款C00901期',name);
+ input.splice(1,0,{page:2,text:'第一部分：产品概述\n二、产品基本要素\n产品名称 自动滚存2028F款\n产品联系标的 澳元/美元\n本产品于2028年01月01日到2028年12月31日运作。'});
+ input[2].text=input[2].text.replace('乐赢智信汇率挂钩人民币结构性存款 C00901 期',name).replace('收益计算天数 31 天','收益计算天数31天，收益计算天数含收益起计日，不含到期日。');
+ input[3].text=input[3].text.replace('本产品交易时间为8：00-17：30','本期子产品手机银行APP渠道交易时间为0:00-23:59');
+ input[3].text=input[3].text.replace('2026年10月05日 收益起计日','收益起计日/起\n息日\n2026年10月05日（如调整募集期，则收益起计日相应调整）').replace('2026年11月05日 到期日','到期日\n2026年11月05日（受收益起计日及提前终止条款等约束）');
+ input[4].text=input[4].text.replace('结构性存款利率确定方式','子产品收益率确定方式').replaceAll('产品年化收益率','子产品年化收益率');
+ const result=parseProspectus(input);assert.deepEqual(result.errors,[]);assert.equal(result.fields.name,name);assert.equal(result.evidence.name.page,3);
+ assert.equal(result.fields.value,'2026-10-05');assert.equal(result.fields.maturity,'2026-11-05');assert.equal(result.fields.mid,'1.50000');
+ assert.equal(result.evidence.underlying.page,4);assert.equal(result.extras.saleStart,'00:00');assert.equal(result.extras.saleEnd,'23:59');
+ input[0].text+=' 本期子产品名称为自动滚存2028G款12号-乐赢智信汇率挂钩人民币结构性存款C00901期';
+ assert.ok(parseProspectus(input).errors.some(e=>e.includes('多个产品名称')));
+});
 test('按标的字段边界读取伦敦金及其他标的，保留原文名称与取数页码',()=>{
  for(const [row,expected] of [
   ['联系标的 伦敦金\n联系标的定义 伦敦黄金，表示为一盎司黄金的美元标价','伦敦金'],

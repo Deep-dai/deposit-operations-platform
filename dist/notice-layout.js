@@ -1,5 +1,5 @@
 // Formatting rules mirror the user's current citic-gongwen preset.
-export const NOTICE_LAYOUT=Object.freeze({page:{width:11906,height:16838},margin:{top:1899,bottom:1843,left:1474,right:1417},bodyHalfPoints:32,titleHalfPoints:44,lineTwips:590,gridLines:22,titleMaxEm:20.4,tableWidths:[1300,4725,1495,1495]});
+export const NOTICE_LAYOUT=Object.freeze({page:{width:11906,height:16838},margin:{top:1899,bottom:1843,left:1474,right:1417},bodyHalfPoints:32,titleHalfPoints:44,tableHalfPoints:21,lineTwips:590,gridLines:22,titleMaxEm:20.4,tableWidths:[1300,4725,1495,1495]});
 export const noticeTextStyle=text=>String(text??'').replace(/\(/g,'（').replace(/\)/g,'）');
 export function textEmWidth(text){return [...String(text)].reduce((sum,char)=>sum+(/[\r\n]/.test(char)?0:char.codePointAt(0)<128?.5:1),0);}
 function balancedLines(tokens){

@@ -100,7 +100,7 @@ export function noticeErrors(state,issue){
   if(!config.addressee.trim()||!config.issuer.trim())errors.push('请填写主送单位和发文单位');
   if(!dateValid(config.date))errors.push('请填写有效的成文日期');
   for(const [key,label] of [['saleStart','销售开始时间'],['saleEnd','销售结束时间'],['lastClose','末日截止时间']])if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(config[key]))errors.push(`请填写有效的${label}`);
-  if(config.saleStart>=config.saleEnd||config.saleEnd>config.lastClose)errors.push('销售开始、销售结束和末日截止时间的先后关系不正确');
+  if(config.saleStart>=config.saleEnd||config.saleStart>=config.lastClose)errors.push('销售开始时间应早于每日销售结束及末日截止时间');
   if(!config.channels.trim()||!config.region.trim()||!config.rule.trim())errors.push('请补全发行渠道、区域及制度依据');
   if(doc.rows.some(r=>r.purchaseChannels)&&!config.channelReviewed)errors.push('请核对说明书购买渠道与本次发行通知渠道，并勾选确认');
   if(Object.values(config.paragraphs).some(v=>!String(v).trim()))errors.push('模板正文各段不能为空');

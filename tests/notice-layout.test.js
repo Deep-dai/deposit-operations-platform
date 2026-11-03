@@ -32,7 +32,8 @@ test('公文导出固定A4、四边边距、22行网格及28字版心，无黑�
  for(const p of styled(xml,'H2'))assert.match(p,/w:eastAsia="楷体_GB2312"/);
  for(const p of styled(xml,'H3')){assert.match(p,/w:eastAsia="仿宋_GB2312"/);assert.doesNotMatch(p,/<w:b\s*\/>/);}
  const table=xml.match(/<w:tbl>([\s\S]*?)<\/w:tbl>/)[1];assert.match(table,/w:tblCaption w:val="GongwenDataTable"/);assert.match(table,/w:tblLayout w:type="fixed"/);
- for(const p of paragraphs(table)){assert.match(p,/w:eastAsia="宋体"/);assert.match(p,/w:sz w:val="24"/);}
+ for(const p of paragraphs(table)){assert.match(p,/w:eastAsia="宋体"/);assert.match(p,/w:sz w:val="21"/);assert.match(p,/<w:jc w:val="center"\/>/);}
+ assert.doesNotMatch(table,/w:sz w:val="(?:24|32)"/);assert.equal((table.match(/<w:vAlign w:val="center"\/>/g)||[]).length,doc.rows.length*4+4);
 });
 test('标题按完整词意分行，单期短标题不强制换行，显式换行在同一标题段且各run格式一致',async()=>{
  const single=fixture(1),multiple=fixture(3);assert.equal(noticeTitleLayout(single.doc.title).lines.length,1);

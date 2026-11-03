@@ -1,13 +1,13 @@
 import {readProspectus,storeOriginal} from './prospectus-files.js';
-import {MATERIAL_FIELDS,directBatchErrors,materialReadErrors,createDirectMaterials} from './direct-materials.js';
+import {MATERIAL_FIELDS,MAX_MATERIAL_PRODUCTS,directBatchErrors,materialReadErrors,createDirectMaterials} from './direct-materials.js';
 import {escapeHTML as e} from './notice-model.js';
 
 export function openDirectMaterials({state,role,showModal,closeModal,onCreated,onError}){
  if(role!=='manager')throw Error('请切换至产品经理');
  const entries=[];let busy=false,serial=0;
- showModal('直接制作发行材料',`<div id="directMaterialsIntake"><p class="direct-intro">上传每期产品说明书，读取产品信息后制作发行通知及海报。</p><label class="direct-title">材料名称（选填）<input id="directMaterialTitle" maxlength="160" placeholder="留空时自动命名"></label><label class="source-upload direct-upload"><strong>选择产品说明书</strong><input id="directMaterialFiles" type="file" accept=".pdf,.docx,.doc" multiple><p>支持多文件上传 · PDF／Word（.docx） · 每次最多12份</p><small>每份文件对应一只产品；文件在当前浏览器读取并保存。</small></label><div id="directReadProgress" role="status"></div><div id="directMaterialEntries"></div><div id="directMaterialErrors" class="source-issues" role="alert"></div></div>`,
+ showModal('直接制作发行材料',`<div id="directMaterialsIntake"><p class="direct-intro">上传每期产品说明书，读取产品信息后制作发行通知及海报。</p><label class="direct-title">材料名称（选填）<input id="directMaterialTitle" maxlength="160" placeholder="留空时自动命名"></label><label class="source-upload direct-upload" id="directDropZone"><span class="btn primary">批量上传说明书</span><input id="directMaterialFiles" aria-label="批量上传说明书" type="file" accept=".pdf,.docx,.doc" multiple><p>可一次选择多个文件，也可分次追加或拖入文件；每批最多${MAX_MATERIAL_PRODUCTS}份。</p><small>支持PDF／Word（.docx），每份对应一只产品；文件在当前浏览器读取并保存。</small></label><div id="directReadProgress" role="status"></div><div id="directMaterialOrder"></div><div id="directMaterialEntries"></div><div id="directMaterialErrors" class="source-issues" role="alert"></div></div>`,
  '<button type="button" class="btn" data-action="close-modal">取消</button><button type="button" class="btn primary" id="createDirectMaterials" disabled>生成发行材料</button>',true);
- const root=document.querySelector('#directMaterialsIntake'),host=root.querySelector('#directMaterialEntries'),progress=root.querySelector('#directReadProgress'),errors=root.querySelector('#directMaterialErrors'),create=document.querySelector('#createDirectMaterials');
+ const root=document.querySelector('#directMaterialsIntake'),host=root.querySelector('#directMaterialEntries'),order=root.querySelector('#directMaterialOrder'),dropZone=root.querySelector('#directDropZone'),progress=root.querySelector('#directReadProgress'),errors=root.querySelector('#directMaterialErrors'),create=document.querySelector('#createDirectMaterials');
  const alive=()=>root.isConnected&&root.closest('dialog')?.open;
  const errorText=message=>{errors.textContent=message;};
  const input=(entry,index,key,label)=>{
@@ -17,19 +17,28 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
   const control=choices?`<select data-direct-field="${key}" data-entry="${index}">${options}</select>`:`<input type="${type}" data-direct-field="${key}" data-entry="${index}" value="${e(value)}" ${key==='underlying'?'placeholder="未识别时请按说明书补充"':''} ${type==='number'?'min="0" step="any"':''}>`;
   return `<label class="direct-field ${key==='name'?'direct-name':''}">${label}${['family','low','mid','high'].includes(key)?'':' <span class="required">*</span>'}${control}</label>`;
  };
+ function renderOrder(){
+  const scroll=order.querySelector('.direct-order-list')?.scrollTop||0;
+  order.innerHTML=entries.length?`<section class="direct-order"><h3>产品排列顺序 <span class="count">${entries.length}／${MAX_MATERIAL_PRODUCTS}</span></h3><p>此顺序用于发行通知的产品表及附件清单，也作为海报的初始顺序。</p><ol class="direct-order-list">${entries.map((entry,index)=>`<li><span class="direct-order-number">${index+1}</span><div class="direct-order-name"><strong>${e(entry.fields.name||entry.result.file?.name||'产品说明书')}</strong><small>${e(entry.fields.marketNumber||'产品代码待核对')}</small></div><div class="direct-order-actions"><button type="button" class="btn small" data-direct-move="${index}" data-direction="-1" aria-label="上移第${index+1}只产品" ${busy||index===0?'disabled':''}>上移</button><button type="button" class="btn small" data-direct-move="${index}" data-direction="1" aria-label="下移第${index+1}只产品" ${busy||index===entries.length-1?'disabled':''}>下移</button><button type="button" class="text-button" data-direct-jump="${index}">核对信息</button></div></li>`).join('')}</ol></section>`:'';
+  const list=order.querySelector('.direct-order-list');if(list)list.scrollTop=scroll;
+ }
  function renderEntries(){
+  renderOrder();
   host.innerHTML=entries.map((entry,index)=>{
    const result=entry.result,blocking=materialReadErrors(result);
-   return `<section class="direct-entry"><div class="direct-entry-head"><div><strong>${index+1}. ${e(entry.fields.name||result.file?.name||'产品说明书')}</strong><small>${e(result.file?.name)}</small></div><button type="button" class="text-button" data-direct-remove="${index}" ${busy?'disabled':''}>移除</button></div>${blocking.length?`<div class="source-issues">${blocking.map(e).join('<br>')}</div>`:`<div class="direct-fields">${MATERIAL_FIELDS.map(([key,label])=>input(entry,index,key,label)).join('')}</div><p class="direct-rate-hint">按百分数填写收益率；不适用档位留空。产品系列未列明时可留空。</p><details class="direct-evidence"><summary>查看读取提示及原文依据</summary>${[...(result.errors||[]),...(result.warnings||[])].filter(message=>!/计划募集金额|金市最终产品额度/.test(message)).map(message=>`<p>${e(message)}</p>`).join('')}<dl>${MATERIAL_FIELDS.filter(([key])=>result.evidence?.[key]).map(([key,label])=>`<dt>${label} · ${result.evidence[key].page?'第'+result.evidence[key].page+'页':'Word正文'}</dt><dd>${e(result.evidence[key].quote)}</dd>`).join('')}</dl></details>`}<div class="direct-entry-foot"><button type="button" class="text-button" data-direct-original="${index}">查看原件</button></div></section>`;
+   return `<section class="direct-entry" data-direct-card="${index}"><div class="direct-entry-head"><div><strong>${index+1}. ${e(entry.fields.name||result.file?.name||'产品说明书')}</strong><small>${e(result.file?.name)}</small></div><button type="button" class="text-button" data-direct-remove="${index}" ${busy?'disabled':''}>移除</button></div>${blocking.length?`<div class="source-issues">${blocking.map(e).join('<br>')}</div>`:`<div class="direct-fields">${MATERIAL_FIELDS.map(([key,label])=>input(entry,index,key,label)).join('')}</div><p class="direct-rate-hint">按百分数填写收益率；不适用档位留空。产品系列未列明时可留空。</p><details class="direct-evidence"><summary>查看读取提示及原文依据</summary>${[...(result.errors||[]),...(result.warnings||[])].filter(message=>!/计划募集金额|金市最终产品额度/.test(message)).map(message=>`<p>${e(message)}</p>`).join('')}<dl>${MATERIAL_FIELDS.filter(([key])=>result.evidence?.[key]).map(([key,label])=>`<dt>${label} · ${result.evidence[key].page?'第'+result.evidence[key].page+'页':'Word正文'}</dt><dd>${e(result.evidence[key].quote)}</dd>`).join('')}</dl></details>`}<div class="direct-entry-foot"><button type="button" class="text-button" data-direct-original="${index}">查看原件</button></div></section>`;
   }).join('');
   create.disabled=busy||!entries.length;root.querySelector('#directMaterialFiles').disabled=busy;
  }
- root.oninput=event=>{const input=event.target;if(input.dataset.directField){entries[Number(input.dataset.entry)].fields[input.dataset.directField]=input.value;errorText('');}};
+ root.oninput=event=>{const input=event.target;if(input.dataset.directField){entries[Number(input.dataset.entry)].fields[input.dataset.directField]=input.value;if(['name','marketNumber'].includes(input.dataset.directField))renderOrder();errorText('');}};
  root.onchange=async event=>{
   if(event.target.dataset.directField){entries[Number(event.target.dataset.entry)].fields[event.target.dataset.directField]=event.target.value;errorText('');return;}
   if(event.target.id!=='directMaterialFiles'||busy)return;
-  const files=[...event.target.files];event.target.value='';
-  if(entries.length+files.length>12){errorText('每次最多12份产品说明书，请分批制作。');return;}
+  const files=[...event.target.files];event.target.value='';await readFiles(files);
+ };
+ async function readFiles(files){
+  if(busy||!files.length||!alive())return;
+  if(entries.length+files.length>MAX_MATERIAL_PRODUCTS){errorText(`每批最多${MAX_MATERIAL_PRODUCTS}份产品说明书，当前已有${entries.length}份。`);return;}
   busy=true;const current=++serial;renderEntries();errorText('');
   try{
    for(const [index,file]of files.entries()){
@@ -40,9 +49,14 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
    }
    progress.textContent=`已读取 ${entries.length} 份说明书。可补充或修改以下产品信息。`;
   }finally{busy=false;if(alive())renderEntries();}
- };
+ }
+ dropZone.ondragover=event=>{event.preventDefault();if(!busy)dropZone.classList.add('dragging');};
+ dropZone.ondragleave=()=>dropZone.classList.remove('dragging');
+ dropZone.ondrop=event=>{event.preventDefault();dropZone.classList.remove('dragging');void readFiles([...event.dataTransfer.files]);};
  root.onclick=event=>{
   const button=event.target.closest('button');if(!button||busy)return;
+  if(button.hasAttribute('data-direct-move')){const index=Number(button.dataset.directMove),to=index+Number(button.dataset.direction);if(to<0||to>=entries.length)return;entries.splice(to,0,entries.splice(index,1)[0]);renderEntries();errorText('');progress.textContent=`已调整产品顺序，共${entries.length}份说明书。`;}
+  if(button.hasAttribute('data-direct-jump')){const card=host.querySelector(`[data-direct-card="${Number(button.dataset.directJump)}"]`);card?.scrollIntoView({block:'start',behavior:'smooth'});card?.querySelector('input')?.focus({preventScroll:true});}
   if(button.hasAttribute('data-direct-remove')){entries.splice(Number(button.dataset.directRemove),1);renderEntries();errorText('');progress.textContent=entries.length?`当前 ${entries.length} 份说明书`:'';}
   if(button.hasAttribute('data-direct-original')){const file=entries[Number(button.dataset.directOriginal)].result.file,url=URL.createObjectURL(file);window.open(url,'_blank','noopener');setTimeout(()=>URL.revokeObjectURL(url),60000);}
  };

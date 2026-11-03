@@ -34,7 +34,7 @@ export async function noticeDocx(doc){
   const body=text=>String(text??'').split(/\r?\n/).map(line=>line?para(line,{style:/^（\d+）/.test(line)?'GongwenH4':/^\d+\./.test(line)?'GongwenH3':'GongwenBody'}):blank());
   const heading=text=>para(text,{style:'GongwenH1',font:'黑体'}),subheading=text=>para(text,{style:'GongwenH2',font:'楷体_GB2312'});
   const border={style:BorderStyle.SINGLE,size:4,color:'000000'},widths=L.tableWidths;
-  const cell=(value,index)=>new TableCell({width:{size:widths[index],type:WidthType.DXA},verticalAlign:VerticalAlign.CENTER,margins:{top:70,bottom:70,left:80,right:80},children:[para(value,{font:'宋体',size:24,indent:false,align:AlignmentType.CENTER,spacing:{line:360,lineRule:LineRuleType.AT_LEAST,before:0,after:0}})]});
+  const cell=(value,index)=>new TableCell({width:{size:widths[index],type:WidthType.DXA},verticalAlign:VerticalAlign.CENTER,margins:{top:70,bottom:70,left:80,right:80},children:[para(value,{font:'宋体',size:L.tableHalfPoints,indent:false,align:AlignmentType.CENTER,spacing:{line:360,lineRule:LineRuleType.AT_LEAST,before:0,after:0}})]});
   const rows=[['产品代码','产品名称','募集起始日','募集结束日'],...doc.rows.map(r=>[r.code,r.name,shortDate(r.start),shortDate(r.end)])];
   const table=new Table({width:{size:widths.reduce((a,b)=>a+b,0),type:WidthType.DXA},columnWidths:widths,layout:TableLayoutType.FIXED,borders:{top:border,bottom:border,left:border,right:border,insideHorizontal:border,insideVertical:border},
     rows:rows.map((values,index)=>new TableRow({tableHeader:index===0,cantSplit:true,children:values.map(cell)}))});

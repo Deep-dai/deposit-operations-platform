@@ -31,9 +31,14 @@ test('现有通知不自动覆盖，保存新模板后才替换且清除确认',
 });
 test('成文日期、时间关系及未填充变量影响确认和导出',()=>{
   const {state,issue}=fixture();saveNotice(state,issue);assert.throws(()=>assertNoticeReady(state,issue),/成文日期/);
-  const config=complete(issue);config.lastClose='16:00';saveNotice(state,issue,config);assert.throws(()=>assertNoticeReady(state,issue),/先后关系/);
+  const config=complete(issue);config.lastClose='07:00';saveNotice(state,issue,config);assert.throws(()=>assertNoticeReady(state,issue),/开始时间/);
   config.lastClose='21:00';config.paragraphs.intro+='{错误字段}';saveNotice(state,issue,config);assert.throws(()=>assertNoticeReady(state,issue),/无法填充/);
   config.paragraphs.intro='我行将发行{产品范围}，具体按{制度依据}执行。';saveNotice(state,issue,config);assert.doesNotThrow(()=>assertNoticeReady(state,issue));
+});
+test('全天销售产品支持募集末日提前截止，开始时间仍须早于两项截止时间',()=>{
+ const {state,issue}=fixture(),config=complete(issue);Object.assign(config,{saleStart:'00:00',saleEnd:'23:59',lastClose:'21:00'});
+ saveNotice(state,issue,config);assert.doesNotThrow(()=>assertNoticeReady(state,issue));
+ config.saleStart='21:00';saveNotice(state,issue,config);assert.throws(()=>assertNoticeReady(state,issue),/开始时间/);
 });
 test('说明书缺失、资料差异、产品代码不一致及更新后的旧通知均被拦截',()=>{
   const {state,issue}=fixture(),p=state.products[0];saveNotice(state,issue,complete(issue));

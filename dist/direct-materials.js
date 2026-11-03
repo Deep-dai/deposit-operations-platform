@@ -1,6 +1,7 @@
 import {clone,dateValid,days,now,uid} from './core.js';
 
 export const isDirectMaterials=issue=>issue?.mode==='materials';
+export const MAX_MATERIAL_PRODUCTS=20;
 export const MATERIAL_FIELDS=[
  ['name','产品名称'],['marketNumber','产品代码'],['family','产品系列'],['currency','币种'],['underlying','挂钩标的'],
  ['start','募集起始日'],['end','募集结束日'],['value','起息日'],['maturity','到期日'],['tenor','期限（天）'],
@@ -29,7 +30,7 @@ export const materialReadErrors=result=>result.error?[result.error]:(result.erro
 export function directBatchErrors(entries){
  const errors=[];
  if(!entries.length)errors.push('请上传至少一份产品说明书');
- if(entries.length>12)errors.push('每次最多上传12份产品说明书');
+ if(entries.length>MAX_MATERIAL_PRODUCTS)errors.push(`每次最多上传${MAX_MATERIAL_PRODUCTS}份产品说明书`);
  const codes=new Set(),hashes=new Set();
  for(const [index,entry]of entries.entries()){
   const prefix=`第${index+1}份：`;

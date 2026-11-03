@@ -26,17 +26,19 @@ function underlyingRow(basic){
   return null;
 }
 export function parseProspectus(pages){
-  const normalized=pages.map(p=>({...p,text:compact(p.text)}));
+  let offset=0;const lines=[];const normalized=pages.map(p=>{const text=compact(p.text),item={...p,text,offset};let at=offset;for(const line of String(p.text??'').split(/\r?\n/)){const length=compact(line).length;lines.push({start:at,end:at+length});at+=length;}offset+=text.length+1;return item;});
   const all=normalized.map(p=>p.text).join('\n'),fields={},evidence={},warnings=[],errors=[],extras={};
   const mainAt=all.indexOf('三、产品基本要素'),endAt=all.indexOf('四、投资团队',mainAt);
   if(mainAt<0)return {fields,evidence,extras,warnings,errors:['未找到“产品基本要素”，请确认是每期产品说明书，而非通用协议或扫描图片。']};
   const basic=all.slice(mainAt,endAt<0?undefined:endAt);
+  const sourcePage=quote=>{const at=all.indexOf(quote,mainAt);return at<0||endAt>=0&&at>=endAt?null:normalized.find(p=>at>=p.offset&&at<p.offset+p.text.length)?.page??null;};
   function set(key,value,quote,reason='原文识别'){
     fields[key]=value;
-    const page=normalized.find(p=>p.text.includes(quote));
-    evidence[key]={page:page?.page??null,quote,reason};
+    evidence[key]={page:sourcePage(quote),quote,reason};
   }
-  const names=[...new Set([...all.matchAll(/乐赢[^，。,;:()【】]*?结构性存款[A-Z]+\d+期/g)].map(m=>m[0]))];
+  const foundNames=[...new Set([...all.matchAll(/(?:自动滚存[A-Z\d]+款\d+号[-—–]?)?乐赢[^，。,;:()【】]*?结构性存款[A-Z]+\d+期/g)].map(m=>m[0]))];
+  // A shorthand repeat may omit the rolling prefix. Distinct rolling names still conflict.
+  const names=foundNames.filter(name=>!name.startsWith('乐赢')||!foundNames.some(full=>full.startsWith('自动滚存')&&full.endsWith(name)));
   const codes=[...new Set([...all.matchAll(/产品编[码号](?:为|:)?(P\d{2}[A-Z]+\d+)/g)].map(m=>m[1]))];
   if(names.length!==1)errors.push(names.length?'文件出现多个产品名称，不能自动归属单只产品。':'未识别到完整产品名称。');
   else {set('name',names[0],names[0]);const family=names[0].match(/乐赢(智信|慧信)/)?.[1];if(family)set('family',family,names[0],'名称包含产品系列');}
@@ -48,9 +50,11 @@ export function parseProspectus(pages){
   // Dates can precede a vertically centered left-column label in PDF extraction.
   const dates=[...basic.matchAll(new RegExp(datePattern,'g'))];
   for(const [key,label] of [['value','收益起计日'],['maturity','到期日']]){
-    const at=basic.indexOf(label);
-    if(at>=0){const distance=m=>m.index>=at+label.length?m.index-at-label.length:at-m.index-m[0].length;const candidates=dates.filter(m=>Math.abs(m.index-at)<100).sort((a,b)=>distance(a)-distance(b));
-      if(candidates.length)set(key,iso(candidates[0]),candidates[0][0],`以“${label}”定位日期，需核对原文`);}
+    const labels=[...basic.matchAll(new RegExp(label,'g'))];
+    const candidates=labels.flatMap(item=>dates.filter(m=>Math.abs(m.index-item.index)<100).map(m=>({match:m,label:item,fieldLine:lines.some(line=>line.start===mainAt+item.index),sameLine:lines.some(line=>line.start<=mainAt+Math.min(item.index,m.index)&&line.end>=mainAt+Math.max(item.index+label.length,m.index+m[0].length)),distance:m.index>=item.index+label.length?m.index-item.index-label.length:item.index-m.index-m[0].length}))).sort((a,b)=>Number(b.fieldLine)-Number(a.fieldLine)||Number(b.sameLine)-Number(a.sameLine)||a.distance-b.distance);
+    if(candidates.length){const nearest=candidates.filter(c=>c.fieldLine===candidates[0].fieldLine&&c.sameLine===candidates[0].sameLine&&c.distance===candidates[0].distance),values=new Set(nearest.map(c=>iso(c.match)));
+      const best=candidates[0],quote=basic.slice(Math.min(best.label.index,best.match.index),Math.max(best.label.index+label.length,best.match.index+best.match[0].length));
+      if(values.size===1)set(key,iso(best.match),quote,`以“${label}”定位最近日期，需核对原文`);else warnings.push(`“${label}”附近出现不同日期，请对照表格补充。`);}
   }
   for(const [key,label] of [['observeStart','期初价格'],['observeEnd','联系标的观察日']]){
     const match=basic.match(new RegExp(label+':'+datePattern));if(match)set(key,iso([null,...match.slice(1,4)]),match[0]);
@@ -59,13 +63,13 @@ export function parseProspectus(pages){
   if(underlying?.value)set('underlying',underlying.value,underlying.quote,'以标的字段及下一字段定位取值；货币对分隔符统一为“兑”，其他名称保留原文');
   if(underlying?.warning)warnings.push(underlying.warning);
   const currency=basic.match(/本金与收益币种均为(人民币|美元)/);if(currency)set('currency',currency[1],currency[0]);
-  const min=basic.match(/初始认购金额不低于([\d.]+)(万元|元)/);
+  const min=basic.match(/(?:初始认购金额|起购金额)不低于([\d.]+)(万元|元)/);
   if(min){set('minimum',String(Number(min[1])*(min[2]==='万元'?10000:1)),min[0],'统一换算为元');set('minimumUnit','元',min[0],'统一换算为元');}
-  const quota=basic.match(/计划募集金额为(?:人民币|美元)?([\d.]+)(亿元|万元|元)/);
+  const quota=basic.match(/(?:计划募集金额为|本期子产品募集金额为)(?:人民币|美元)?([\d.]+)(亿元|万元|元)/);
   if(quota)set('quota',String(Number(quota[1])*({'亿元':10000,'万元':1,'元':.0001}[quota[2]])),quota[0],'计划募集金额换算为万元，是否等同本次额度须核对');
   if(quota)warnings.push('说明书列明的是计划募集金额，已换算为万元；请核对其与金市最终产品额度的口径。');
-  const risk=basic.match(/R([1-5])级\(([^)]+)\)/);if(risk){extras.risk=`R${risk[1]}${risk[2]}`;extras.riskEvidence={page:normalized.find(p=>p.text.includes(risk[0]))?.page??null,quote:risk[0]};}
-  const rateSection=basic.slice(basic.indexOf('结构性存款利率确定方式'),basic.indexOf('购买渠道')<0?undefined:basic.indexOf('购买渠道'));
+  const risk=basic.match(/R([1-5])级\(([^)]+)\)/);if(risk){extras.risk=`R${risk[1]}${risk[2]}`;extras.riskEvidence={page:sourcePage(risk[0]),quote:risk[0]};}
+  const rateAt=basic.search(/结构性存款利率确定方式|子产品收益率确定方式/),rateSection=rateAt<0?'':basic.slice(rateAt,basic.indexOf('购买渠道')<0?undefined:basic.indexOf('购买渠道'));
   const rateMatches=[...rateSection.matchAll(/产品年化收益率(?:定方式)?为(?:预期(?:最高|最低)收益率)?([\d.]+)%/g)];
   const rates=[...new Map(rateMatches.filter(m=>Number.isFinite(Number(m[1]))).map(m=>[Number(m[1]),m[1]])).values()].sort((a,b)=>Number(a)-Number(b));
   if(rates.length>=2&&rates.length<=3){
@@ -74,10 +78,10 @@ export function parseProspectus(pages){
     if(rates.length===3)set('mid',rates[1],rateMatches.find(m=>m[1]===rates[1])[0]);else set('mid','',rateMatches[0][0],'确定方式仅识别两档收益');
   }else if(rates.length>3)errors.push('收益档位超过当前支持的三档，不能直接套用当前产品要素，请单独核对。');
   else warnings.push('未能完整识别收益档位，请按收益率确定方式手工核对；不会用收益区间或触发比例代填。');
-  const time=basic.match(/本产品交易时间为(\d{1,2}):(\d{2})[-—](\d{1,2}):(\d{2})/);
+  const time=basic.match(/(?:本产品|本期子产品手机银行APP渠道)交易时间为(\d{1,2}):(\d{2})[-—](\d{1,2}):(\d{2})/);
   if(time){extras.saleStart=time[1].padStart(2,'0')+':'+time[2];extras.saleEnd=time[3].padStart(2,'0')+':'+time[4];}
   const last=basic.match(/募集期最后一天交易截止时间为(\d{1,2}):(\d{2})/);if(last)extras.lastClose=last[1].padStart(2,'0')+':'+last[2];
-  const channel=basic.match(/购买渠道(.+?)(?:质押条款|税收条款|费用)/);if(channel){extras.purchaseChannels=channel[1];extras.channelPage=normalized.find(p=>p.text.includes(channel[1]))?.page??null;warnings.push('说明书购买渠道需与本次发行通知渠道核对，不自动扩展为全部渠道。');}
+  const channel=basic.match(/购买渠道(.+?)(?:质押条款|税收条款|费用|\n|$)/);if(channel){extras.purchaseChannels=channel[1];extras.channelPage=sourcePage(channel[1]);warnings.push('说明书购买渠道需与本次发行通知渠道核对，不自动扩展为全部渠道。');}
   for(const [key,label]of Object.entries({name:'产品名称',marketNumber:'产品代码',underlying:'挂钩标的',start:'募集起始日',end:'募集结束日',value:'起息日',maturity:'到期日',tenor:'期限'}))if(!own(fields,key))warnings.push(`未识别字段：${label}`);
   if(fields.value&&fields.maturity&&fields.tenor&&Math.round((Date.parse(fields.maturity)-Date.parse(fields.value))/86400000)!==Number(fields.tenor))errors.push('说明书期限与起息日、到期日间隔不一致，请核对。');
   return {fields,evidence,extras,warnings,errors};
