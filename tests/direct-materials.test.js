@@ -42,6 +42,12 @@ test('20份说明书按调整后顺序进入通知、附件和海报，超过20�
  assert.throws(()=>buildPosterModel(state,issue,{...posterConfig(issue),selectedIds:[...issue.productIds]}),/最多放入 20/);
  assert.ok(directBatchErrors([...entries,extra]).some(e=>e.includes('20份')));
 });
+test('浮动区间类型随材料与原文提取值保存，端点缺失或混入中档时不允许创建',()=>{
+ const input=entry();Object.assign(input.fields,{rateMode:'range',low:'0.5',mid:'',high:'4.7'});Object.assign(input.result.fields,input.fields);input.result.extras.rateMode='range';
+ const state=seed(),issue=createDirectMaterials(state,[input]);assert.equal(issue.materialProducts[0].fields.rateMode,'range');assert.equal(issue.materialProducts[0].extractedFields.rateMode,'range');assert.equal(buildPosterModel(state,issue).products[0].rateMode,'range');
+ for(const change of [{high:''},{low:''},{mid:'2.6'},{rateMode:'unknown'}])assert.ok(materialFieldErrors({...input.fields,...change}).length);
+ assert.equal(createDirectMaterials(seed(),[entry()]).materialProducts[0].fields.rateMode,'tiers');
+});
 test('缺项、重复产品代码、重复原件、数量越界及原件缺失整批阻断且不写入半成品',()=>{
  for(const prepare of [()=>[],()=>[entry(),entry()],()=>{const a=entry(2);a.fields.marketNumber=entry().fields.marketNumber;return [entry(),a];},()=>{const a=entry();a.fields.maturity='';return [a];},()=>{const a=entry();a.source=null;return [a];},()=>Array.from({length:21},(_,i)=>entry(i+1))]){
   const state=seed(),before=clone(state);assert.throws(()=>createDirectMaterials(state,prepare()));assert.deepEqual(state,before);

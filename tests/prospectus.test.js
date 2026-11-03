@@ -79,6 +79,26 @@ test('仅有收益区间时不擅自补齐中档收益，复杂档位也不套�
  assert.equal(result.fields.low,undefined);assert.equal(result.fields.mid,undefined);assert.ok(result.warnings.some(s=>s.includes('收益档位')));
  const complex=pages();complex[3].text=complex[3].text.replace('购买渠道','产品年化收益率为1.60000%；购买渠道');assert.ok(parseProspectus(complex).errors.some(s=>s.includes('超过')));
 });
+test('本金及存款利息收益币种写法和起存金额可识别，缺项或冲突不从标的及名称代填',()=>{
+ for(const phrase of ['本金及存款利息收益币种均为人民币','本金和利息收益币种为人民币','本金与收益币种均为美元']){
+  const input=pages();input[2].text=input[2].text.replace('本金与收益币种均为人民币',phrase).replace('初始认购金额','起存金额');
+  const result=parseProspectus(input);assert.equal(result.fields.currency,phrase.includes('美元')?'美元':'人民币');assert.equal(result.fields.minimum,'10000');assert.equal(result.evidence.currency.page,4);
+ }
+ const absent=pages();absent[2].text=absent[2].text.replace('本产品本金与收益币种均为人民币，','');const missing=parseProspectus(absent);
+ assert.equal(missing.fields.currency,undefined);assert.ok(missing.warnings.includes('未识别字段：币种'));
+ const conflicting=pages();conflicting[2].text+=' 本金及存款利息收益币种均为美元';const result=parseProspectus(conflicting);assert.equal(result.fields.currency,undefined);assert.ok(result.warnings.some(w=>w.includes('币种出现不同取值')));
+});
+test('公式型收益从明确的最低最高年化收益率读取区间，不把系数和触发比例作为中档',()=>{
+ const input=pages();input[3].text='结构性存款利率确定方式如下：R=1.00000%+0.57000%×n/N，n为价格在97.97%与102.03%之间的天数。产品预期最低年化收益率为1.00000%，预期最高年化收益率为1.57%。购买渠道 手机银行 质押条款 可质押 四、投资团队';
+ const result=parseProspectus(input);assert.deepEqual(result.errors,[]);assert.equal(result.fields.rateMode,'range');assert.equal(result.extras.rateMode,'range');assert.equal(result.fields.low,'1.00000');assert.equal(result.fields.high,'1.57');assert.equal(result.fields.mid,'');assert.equal(result.evidence.high.page,5);assert.equal(result.evidence.high.quote,'预期最高年化收益率为1.57%');
+ const incomplete=pages();incomplete[3].text='结构性存款利率确定方式如下：R=1.00000%+0.57000%×n/N，预期最低年化收益率为1.00000%。购买渠道 手机银行 质押条款 可质押 四、投资团队';
+ const missing=parseProspectus(incomplete);assert.equal(missing.fields.low,'1.00000');assert.equal(missing.fields.high,undefined);assert.ok(missing.warnings.some(w=>w.includes('未识别到明确列示的最高')));
+ input[3].text=input[3].text.replace('购买渠道','另列预期最高年化收益率为1.60%。购买渠道');const conflict=parseProspectus(input);assert.equal(conflict.fields.high,undefined);assert.ok(conflict.warnings.some(w=>w.includes('最高年化收益率存在不同')));
+});
+test('分段收益包含公式浮动项时，保留明确上下限并标明浮动区间',()=>{
+ const input=pages();input[3].text='结构性存款利率确定方式如下：若R≥120%，产品年化收益率为预期最高收益率4.7%；若100%<R<120%，产品年化收益率=预期最低收益率+0.21*(R-100%)=0.5%+0.21*(R-100%)；若R≤100%，产品年化收益率为预期最低收益率0.5%。购买渠道 网点 质押条款 可质押 四、投资团队';
+ const r=parseProspectus(input);assert.equal(r.fields.rateMode,'range');assert.equal(r.fields.low,'0.5');assert.equal(r.fields.high,'4.7');assert.equal(r.fields.mid,'');assert.ok(r.warnings.some(w=>w.includes('公式浮动')));
+});
 test('数值精度、空值与起存单位比对正确，真实差异仍被识别',()=>{
  const {state,p,result,payload,source}=fixture();applyReturn(state,p.id,payload,source);
  assert.ok(compare(p).every(r=>r.ok));p.prospectus.low='';assert.equal(compare(p).find(r=>r.key==='low').ok,false);

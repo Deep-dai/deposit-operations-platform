@@ -14,11 +14,13 @@ export function posterConfig(issue) {
 }
 
 export function rateText(product, separator='或') {
-  return ['low','mid','high'].filter(key=>filled(product[key])).map(key=>{
+  const keys=product.rateMode==='range'?['low','high']:['low','mid','high'].filter(key=>filled(product[key]));
+  if(product.rateMode==='range'&&(!filled(product.low)||!filled(product.high)||filled(product.mid)||Number(product.low)>Number(product.high)))throw Error('浮动收益区间须填写有效的最低、最高值，中档不适用');
+  return keys.map(key=>{
     const value=Number(product[key]);
     if(!String(product[key]).trim()||!Number.isFinite(value)||value<0)throw Error('产品收益率无效，请核对最终要素');
     return `${value.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:20,useGrouping:false})}%`;
-  }).join(separator);
+  }).join(product.rateMode==='range'?'至':separator);
 }
 
 export function posterDimensions(template,count,{consumerProtectionNumber=''}={}) {
@@ -43,7 +45,7 @@ export function buildPosterModel(state,issue,config=posterConfig(issue)) {
     const product={id,name:final.name,code:p.marketNumber||final.marketNumber||'',family:final.family,
       currency:final.currency,underlying:final.underlying,tenor:final.tenor,
       start:final.start,end:final.end,value:final.value,maturity:final.maturity,
-      low:final.low,mid:final.mid,high:final.high,
+      low:final.low,mid:final.mid,high:final.high,rateMode:final.rateMode||p.prospectusSource?.extras?.rateMode||'tiers',
       hook:String(extra.hook??`挂钩${final.underlying}`).trim(),risk:String(extra.risk||'').trim()};
     if(!product.code)throw Error(`${product.name}缺少产品编号，请补全金市回传信息`);
     if(!rateText(product))throw Error(`${product.name}缺少收益率`);

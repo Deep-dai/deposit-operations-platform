@@ -5,12 +5,12 @@ export const MAX_MATERIAL_PRODUCTS=20;
 export const MATERIAL_FIELDS=[
  ['name','产品名称'],['marketNumber','产品代码'],['family','产品系列'],['currency','币种'],['underlying','挂钩标的'],
  ['start','募集起始日'],['end','募集结束日'],['value','起息日'],['maturity','到期日'],['tenor','期限（天）'],
- ['low','低档收益率（%）'],['mid','中档收益率（%）'],['high','高档收益率（%）']
+ ['rateMode','收益类型'],['low','低档收益率（%）'],['mid','中档收益率（%）'],['high','高档收益率（%）']
 ];
 const present=v=>v!==''&&v!==null&&v!==undefined&&String(v).trim()!=='';
 export function materialFieldErrors(fields){
  const errors=[];
- for(const [key,label] of MATERIAL_FIELDS.filter(([key])=>!['family','low','mid','high'].includes(key)))if(!present(fields[key]))errors.push(`${label}不能为空`);
+ for(const [key,label] of MATERIAL_FIELDS.filter(([key])=>!['family','rateMode','low','mid','high'].includes(key)))if(!present(fields[key]))errors.push(`${label}不能为空`);
  for(const [key,label] of MATERIAL_FIELDS.filter(([key])=>['start','end','value','maturity'].includes(key)))if(present(fields[key])&&!dateValid(fields[key]))errors.push(`${label}不是有效日期`);
  if(dateValid(fields.start)&&dateValid(fields.end)&&fields.start>fields.end)errors.push('募集结束日不能早于募集起始日');
  if(dateValid(fields.end)&&dateValid(fields.value)&&fields.end>=fields.value)errors.push('起息日应晚于募集结束日');
@@ -21,6 +21,11 @@ export function materialFieldErrors(fields){
  if(!rates.length)errors.push('至少填写一档收益率');
  if(rates.some(v=>!Number.isFinite(v)||v<0))errors.push('收益率应为不小于零的数字');
  if(rates.some((v,i)=>i>0&&v<rates[i-1]))errors.push('收益率应按低、中、高非递减排列');
+ if(present(fields.rateMode)&&!['tiers','range'].includes(fields.rateMode))errors.push('收益类型请选择固定档位或浮动区间');
+ if(fields.rateMode==='range'){
+  if(!present(fields.low)||!present(fields.high))errors.push('浮动区间须填写最低和最高年化收益率');
+  if(present(fields.mid))errors.push('浮动区间不适用中档收益率，请留空');
+ }
  if(present(fields.currency)&&!['人民币','美元'].includes(fields.currency))errors.push('币种请选择人民币或美元');
  if(String(fields.name||'').length>160)errors.push('产品名称最多160字');
  if(String(fields.marketNumber||'').length>60)errors.push('产品代码最多60字');
@@ -51,7 +56,7 @@ export function createDirectMaterials(state,entries,{title='',role='manager'}={}
  const errors=directBatchErrors(entries);if(errors.length)throw Error(errors[0]);
  if(entries.some(e=>!e.source?.id||e.source.hash!==e.result.hash||e.source.id!==e.result.hash))throw Error('说明书原件尚未保存，请重新上传');
  const products=entries.map(entry=>{
-  const fields=Object.fromEntries(MATERIAL_FIELDS.map(([key])=>[key,String(entry.fields[key]??'').trim()]));
+  const fields=Object.fromEntries(MATERIAL_FIELDS.map(([key])=>[key,String(entry.fields[key]??(key==='rateMode'?'tiers':'')).trim()]));
   const extracted=clone(entry.result.fields||{});
   return {id:uid('MP'),fields,extractedFields:extracted,source:{...clone(entry.source),extras:clone(entry.result.extras||{}),evidence:clone(entry.result.evidence||{}),
    manualFields:MATERIAL_FIELDS.map(([key])=>key).filter(key=>String(fields[key])!==String(extracted[key]??''))}};

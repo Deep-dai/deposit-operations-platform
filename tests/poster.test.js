@@ -15,6 +15,13 @@ test('收益率保留零值和原始精度，略过不适用档位，至少显�
  assert.equal(rateText({low:'1.055',high:'1.875'}),'1.055%或1.875%');
  assert.throws(()=>rateText({low:'NaN'}),/无效/);
 });
+test('浮动区间用最低至最高展示，缺少端点、夹带中档或上下限倒置时拒绝生成',()=>{
+ const range={rateMode:'range',low:0,mid:'',high:'4.7'};assert.equal(rateText(range),'0.00%至4.70%');assert.equal(rateText(range,'/'),'0.00%至4.70%');
+ for(const wrong of [{...range,high:''},{...range,mid:'2.6'},{...range,low:'5'},{...range,low:'NaN'}])assert.throws(()=>rateText(wrong));
+ const {state,issue}=fixture(),p=state.products.find(p=>p.id===issue.productIds[0]);
+ for(const source of [p.approved,p.market,p.prospectus])Object.assign(source,{low:'0.5',mid:'',high:'4.7'});
+ p.prospectusSource={extras:{rateMode:'range'}};const model=buildPosterModel(state,issue);assert.equal(model.products[0].rateMode,'range');assert.equal(rateText(model.products[0]),'0.50%至4.70%');assert.equal(model.products[1].rateMode,'tiers');
+});
 test('模板选择、合集筛选及排列顺序决定海报产品',()=>{
  const {state,issue}=fixture(),config=posterConfig(issue);config.order.reverse();
  assert.equal(buildPosterModel(state,issue,config).products[0].id,issue.productIds[1]);

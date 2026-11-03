@@ -62,8 +62,9 @@ export function parseProspectus(pages){
   const underlying=underlyingRow(basic);
   if(underlying?.value)set('underlying',underlying.value,underlying.quote,'以标的字段及下一字段定位取值；货币对分隔符统一为“兑”，其他名称保留原文');
   if(underlying?.warning)warnings.push(underlying.warning);
-  const currency=basic.match(/本金与收益币种均为(人民币|美元)/);if(currency)set('currency',currency[1],currency[0]);
-  const min=basic.match(/(?:初始认购金额|起购金额)不低于([\d.]+)(万元|元)/);
+  const currencies=[...basic.matchAll(/本金(?:与|及|和)(?:存款利息收益|利息收益|收益|利息)币种(?:均)?为(人民币|美元)/g)],currencyValues=new Set(currencies.map(m=>m[1]));
+  if(currencyValues.size===1)set('currency',currencies[0][1],currencies[0][0]);else if(currencyValues.size>1)warnings.push('本金及收益币种出现不同取值，请核对原文后填写。');
+  const min=basic.match(/(?:初始认购金额|起购金额|起存金额)不低于([\d.]+)(万元|元)/);
   if(min){set('minimum',String(Number(min[1])*(min[2]==='万元'?10000:1)),min[0],'统一换算为元');set('minimumUnit','元',min[0],'统一换算为元');}
   const quota=basic.match(/(?:计划募集金额为|本期子产品募集金额为)(?:人民币|美元)?([\d.]+)(亿元|万元|元)/);
   if(quota)set('quota',String(Number(quota[1])*({'亿元':10000,'万元':1,'元':.0001}[quota[2]])),quota[0],'计划募集金额换算为万元，是否等同本次额度须核对');
@@ -72,7 +73,21 @@ export function parseProspectus(pages){
   const rateAt=basic.search(/结构性存款利率确定方式|子产品收益率确定方式/),rateSection=rateAt<0?'':basic.slice(rateAt,basic.indexOf('购买渠道')<0?undefined:basic.indexOf('购买渠道'));
   const rateMatches=[...rateSection.matchAll(/产品年化收益率(?:定方式)?为(?:预期(?:最高|最低)收益率)?([\d.]+)%/g)];
   const rates=[...new Map(rateMatches.filter(m=>Number.isFinite(Number(m[1]))).map(m=>[Number(m[1]),m[1]])).values()].sort((a,b)=>Number(a)-Number(b));
-  if(rates.length>=2&&rates.length<=3){
+  // A payoff formula is not a two/three-tier product. Read explicitly stated
+  // bounds from this section only; never infer bounds from a range or examples.
+  const formula=rateSection.match(/产品年化收益率[=:][^。；;]*[+*×][^。；;]*/)||rateSection.match(/\bR=[^。；;，,]*[+*×][^。；;，,]*n\/N[^。；;，,]*/i);
+  if(formula){
+    set('rateMode','range',formula[0],'收益率包含公式计算项，最低及最高值按浮动区间展示');extras.rateMode='range';extras.rateFormula=formula[0];
+    const bounds=[...rateSection.matchAll(/(?:预期)?(最低|最高)(?:年化)?收益率(?:为|=|:)?([\d.]+)%/g)];
+    for(const [key,label]of [['low','最低'],['high','最高']]){
+      const found=bounds.filter(m=>m[1]===label&&Number.isFinite(Number(m[2]))),values=new Set(found.map(m=>Number(m[2])));
+      if(values.size===1)set(key,found[0][2],found[0][0],`从收益率确定方式读取明确列示的${label}年化收益率，不计算或猜测公式边界`);
+      else warnings.push(values.size?`${label}年化收益率存在不同取值，请按原文核对。`:`未识别到明确列示的${label}年化收益率，请按原文补充。`);
+    }
+    set('mid','',formula[0],'公式浮动收益不填中档，不把公式系数或情景测算当作收益档位');
+    if(own(fields,'low')&&own(fields,'high')&&Number(fields.low)>Number(fields.high)){delete fields.low;delete fields.high;delete evidence.low;delete evidence.high;warnings.push('最低年化收益率高于最高值，未自动填写，请核对原文。');}
+    warnings.push('收益按说明书公式浮动，海报按最低至最高收益区间展示；不使用固定档位的“或”，不填中档。');
+  }else if(rates.length>=2&&rates.length<=3){
     set('low',rates[0],rateMatches.find(m=>m[1]===rates[0])[0],'从收益率确定方式读取，不取触发条件比例');
     set('high',rates.at(-1),rateMatches.find(m=>m[1]===rates.at(-1))[0],'从收益率确定方式读取，不取触发条件比例');
     if(rates.length===3)set('mid',rates[1],rateMatches.find(m=>m[1]===rates[1])[0]);else set('mid','',rateMatches[0][0],'确定方式仅识别两档收益');
@@ -82,7 +97,7 @@ export function parseProspectus(pages){
   if(time){extras.saleStart=time[1].padStart(2,'0')+':'+time[2];extras.saleEnd=time[3].padStart(2,'0')+':'+time[4];}
   const last=basic.match(/募集期最后一天交易截止时间为(\d{1,2}):(\d{2})/);if(last)extras.lastClose=last[1].padStart(2,'0')+':'+last[2];
   const channel=basic.match(/购买渠道(.+?)(?:质押条款|税收条款|费用|\n|$)/);if(channel){extras.purchaseChannels=channel[1];extras.channelPage=sourcePage(channel[1]);warnings.push('说明书购买渠道需与本次发行通知渠道核对，不自动扩展为全部渠道。');}
-  for(const [key,label]of Object.entries({name:'产品名称',marketNumber:'产品代码',underlying:'挂钩标的',start:'募集起始日',end:'募集结束日',value:'起息日',maturity:'到期日',tenor:'期限'}))if(!own(fields,key))warnings.push(`未识别字段：${label}`);
+  for(const [key,label]of Object.entries({name:'产品名称',marketNumber:'产品代码',currency:'币种',underlying:'挂钩标的',start:'募集起始日',end:'募集结束日',value:'起息日',maturity:'到期日',tenor:'期限'}))if(!own(fields,key))warnings.push(`未识别字段：${label}`);
   if(fields.value&&fields.maturity&&fields.tenor&&Math.round((Date.parse(fields.maturity)-Date.parse(fields.value))/86400000)!==Number(fields.tenor))errors.push('说明书期限与起息日、到期日间隔不一致，请核对。');
   return {fields,evidence,extras,warnings,errors};
 }

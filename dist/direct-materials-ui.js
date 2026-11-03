@@ -1,6 +1,7 @@
 import {readProspectus,storeOriginal} from './prospectus-files.js';
 import {MATERIAL_FIELDS,MAX_MATERIAL_PRODUCTS,directBatchErrors,materialReadErrors,createDirectMaterials} from './direct-materials.js';
 import {escapeHTML as e} from './notice-model.js';
+const fieldLabel=(entry,key,label)=>entry.fields.rateMode==='range'&&key==='low'?'最低年化收益率（%）':entry.fields.rateMode==='range'&&key==='high'?'最高年化收益率（%）':label;
 
 export function openDirectMaterials({state,role,showModal,closeModal,onCreated,onError}){
  if(role!=='manager')throw Error('请切换至产品经理');
@@ -11,11 +12,12 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
  const alive=()=>root.isConnected&&root.closest('dialog')?.open;
  const errorText=message=>{errors.textContent=message;};
  const input=(entry,index,key,label)=>{
-  const value=entry.fields[key]??'',type=['start','end','value','maturity'].includes(key)?'date':['tenor','low','mid','high'].includes(key)?'number':'text';
-  const choices=key==='family'?['智信','慧信']:key==='currency'?['人民币','美元']:null;
-  const options=choices?`<option value="">请选择</option>${choices.map(v=>`<option value="${e(v)}" ${v===value?'selected':''}>${e(v)}</option>`).join('')}`:'';
+  const value=entry.fields[key]??(key==='rateMode'?'tiers':''),type=['start','end','value','maturity'].includes(key)?'date':['tenor','low','mid','high'].includes(key)?'number':'text';
+  label=fieldLabel(entry,key,label);
+  const choices=key==='family'?['智信','慧信']:key==='currency'?['人民币','美元']:key==='rateMode'?[['tiers','固定档位'],['range','浮动区间']]:null;
+  const options=choices?`${key==='rateMode'?'':'<option value="">请选择</option>'}${choices.map(item=>{const [v,label]=Array.isArray(item)?item:[item,item];return `<option value="${e(v)}" ${v===value?'selected':''}>${e(label)}</option>`;}).join('')}`:'';
   const control=choices?`<select data-direct-field="${key}" data-entry="${index}">${options}</select>`:`<input type="${type}" data-direct-field="${key}" data-entry="${index}" value="${e(value)}" ${key==='underlying'?'placeholder="未识别时请按说明书补充"':''} ${type==='number'?'min="0" step="any"':''}>`;
-  return `<label class="direct-field ${key==='name'?'direct-name':''}">${label}${['family','low','mid','high'].includes(key)?'':' <span class="required">*</span>'}${control}</label>`;
+  return `<label class="direct-field ${key==='name'?'direct-name':''}">${label}${['family','rateMode','low','mid','high'].includes(key)?'':' <span class="required">*</span>'}${control}</label>`;
  };
  function renderOrder(){
   const scroll=order.querySelector('.direct-order-list')?.scrollTop||0;
@@ -26,13 +28,13 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
   renderOrder();
   host.innerHTML=entries.map((entry,index)=>{
    const result=entry.result,blocking=materialReadErrors(result);
-   return `<section class="direct-entry" data-direct-card="${index}"><div class="direct-entry-head"><div><strong>${index+1}. ${e(entry.fields.name||result.file?.name||'产品说明书')}</strong><small>${e(result.file?.name)}</small></div><button type="button" class="text-button" data-direct-remove="${index}" ${busy?'disabled':''}>移除</button></div>${blocking.length?`<div class="source-issues">${blocking.map(e).join('<br>')}</div>`:`<div class="direct-fields">${MATERIAL_FIELDS.map(([key,label])=>input(entry,index,key,label)).join('')}</div><p class="direct-rate-hint">按百分数填写收益率；不适用档位留空。产品系列未列明时可留空。</p><details class="direct-evidence"><summary>查看读取提示及原文依据</summary>${[...(result.errors||[]),...(result.warnings||[])].filter(message=>!/计划募集金额|金市最终产品额度/.test(message)).map(message=>`<p>${e(message)}</p>`).join('')}<dl>${MATERIAL_FIELDS.filter(([key])=>result.evidence?.[key]).map(([key,label])=>`<dt>${label} · ${result.evidence[key].page?'第'+result.evidence[key].page+'页':'Word正文'}</dt><dd>${e(result.evidence[key].quote)}</dd>`).join('')}</dl></details>`}<div class="direct-entry-foot"><button type="button" class="text-button" data-direct-original="${index}">查看原件</button></div></section>`;
+   return `<section class="direct-entry" data-direct-card="${index}"><div class="direct-entry-head"><div><strong>${index+1}. ${e(entry.fields.name||result.file?.name||'产品说明书')}</strong><small>${e(result.file?.name)}</small></div><button type="button" class="text-button" data-direct-remove="${index}" ${busy?'disabled':''}>移除</button></div>${blocking.length?`<div class="source-issues">${blocking.map(e).join('<br>')}</div>`:`<div class="direct-fields">${MATERIAL_FIELDS.filter(([key])=>key!=='mid'||entry.fields.rateMode!=='range').map(([key,label])=>input(entry,index,key,label)).join('')}</div><p class="direct-rate-hint">${entry.fields.rateMode==='range'?'收益按说明书公式在最低、最高值之间浮动，中档不适用。':'按百分数填写收益率；不适用档位留空。'}产品系列未列明时可留空。</p><details class="direct-evidence"><summary>查看读取提示及原文依据</summary>${[...(result.errors||[]),...(result.warnings||[])].filter(message=>!/计划募集金额|金市最终产品额度/.test(message)).map(message=>`<p>${e(message)}</p>`).join('')}<dl>${MATERIAL_FIELDS.filter(([key])=>result.evidence?.[key]&&(key!=='mid'||entry.fields.rateMode!=='range')).map(([key,label])=>`<dt>${fieldLabel(entry,key,label)} · ${result.evidence[key].page?'第'+result.evidence[key].page+'页':'Word正文'}</dt><dd>${e(result.evidence[key].quote)}</dd>`).join('')}</dl></details>`}<div class="direct-entry-foot"><button type="button" class="text-button" data-direct-original="${index}">查看原件</button></div></section>`;
   }).join('');
   create.disabled=busy||!entries.length;root.querySelector('#directMaterialFiles').disabled=busy;
  }
  root.oninput=event=>{const input=event.target;if(input.dataset.directField){entries[Number(input.dataset.entry)].fields[input.dataset.directField]=input.value;if(['name','marketNumber'].includes(input.dataset.directField))renderOrder();errorText('');}};
  root.onchange=async event=>{
-  if(event.target.dataset.directField){entries[Number(event.target.dataset.entry)].fields[event.target.dataset.directField]=event.target.value;errorText('');return;}
+  if(event.target.dataset.directField){const entry=entries[Number(event.target.dataset.entry)];entry.fields[event.target.dataset.directField]=event.target.value;if(event.target.dataset.directField==='rateMode'){if(entry.fields.rateMode==='range')entry.fields.mid='';renderEntries();}errorText('');return;}
   if(event.target.id!=='directMaterialFiles'||busy)return;
   const files=[...event.target.files];event.target.value='';await readFiles(files);
  };

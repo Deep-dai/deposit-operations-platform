@@ -42,7 +42,7 @@ export function mountPoster(root,{state,issue,editable,onChange,onError}) {
     download.disabled=true;error.textContent='';
     try {
       const model=buildPosterModel(state,issue,config);
-      root.querySelector('#posterData').innerHTML=model.products.map(p=>`<div class="poster-data-product"><b>${esc(p.name)}</b><dl><dt>产品编号</dt><dd>${esc(p.code)}</dd><dt>预期年化收益率</dt><dd>${esc(rateText(p))}</dd><dt>期限</dt><dd>${esc(p.tenor)} 天</dd><dt>起售 / 截止</dt><dd>${esc(p.start)} / ${esc(p.end)}</dd><dt>起息 / 到期</dt><dd>${esc(p.value)} / ${esc(p.maturity)}</dd></dl></div>`).join('');
+      root.querySelector('#posterData').innerHTML=model.products.map(p=>`<div class="poster-data-product"><b>${esc(p.name)}</b><dl><dt>产品编号</dt><dd>${esc(p.code)}</dd><dt>${p.rateMode==='range'?'预期年化收益率区间':'预期年化收益率'}</dt><dd>${esc(rateText(p))}</dd><dt>期限</dt><dd>${esc(p.tenor)} 天</dd><dt>起售 / 截止</dt><dd>${esc(p.start)} / ${esc(p.end)}</dd><dt>起息 / 到期</dt><dd>${esc(p.value)} / ${esc(p.maturity)}</dd></dl></div>`).join('');
       // Draw offscreen first, so a slower earlier render cannot overwrite the latest preview.
       const frame=await renderPoster(document.createElement('canvas'),model);
       if(current!==ticket||!canvas.isConnected)return;
