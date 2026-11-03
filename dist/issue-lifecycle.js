@@ -1,22 +1,23 @@
 // Download progress is separate from the editable draft / published lifecycle.
-// A later WeCom integration can set its delivery state; no sending is done here.
+// Actual WeCom receipts come from the local relay; local branch delivery is separate.
 export function isIssueLocked(issue){
- return !!issue&&(['sent','wecom_sent'].includes(issue.status)||['sent','wecom_sent'].includes(issue.deliveryStatus));
+ return !!issue&&(['sent','wecom_sent'].includes(issue.status)||['sent','wecom_sent'].includes(issue.deliveryStatus)||['pending','partial','unknown','sent'].includes(issue.wecomDelivery?.status));
 }
 export const isIssueEditable=issue=>!!issue&&issue.status==='draft'&&!isIssueLocked(issue);
 export const canCancelIssue=(issue,role='manager')=>role==='manager'&&isIssueEditable(issue);
 export function assertIssueEditable(issue){
  if(!issue)throw Error('未找到发行记录');
- if(isIssueLocked(issue))throw Error('已下发的发行记录不能修改或取消');
+ if(isIssueLocked(issue))throw Error(issue.wecomDelivery&&issue.wecomDelivery.status!=='sent'?'企微发送已发起，当前材料已锁定，请先查看发送结果':'已下发的发行记录不能修改或取消');
  if(!isIssueEditable(issue))throw Error('当前发行状态不能修改或取消');
  return issue;
 }
 export function issueDeliveryState(issue){
  if(issue?.status==='wecom_sent'||issue?.deliveryStatus==='wecom_sent')return 'wecom_sent';
+ const active={pending:'wecom_sending',partial:'wecom_partial',unknown:'wecom_unknown',failed:'wecom_failed'}[issue?.wecomDelivery?.status];if(active)return active;
  if(isIssueLocked(issue))return 'sent';
  return issue?.deliveryStatus==='downloaded'||issue?.downloadedAt||issue?.downloads?.notice||issue?.downloads?.poster?'downloaded':'pending';
 }
-export const issueDeliveryLabel=issue=>({pending:'待下载',downloaded:'已下载',sent:'已下发',wecom_sent:'已企微下发'}[issueDeliveryState(issue)]);
+export const issueDeliveryLabel=issue=>({pending:'待下载',downloaded:'已下载',sent:'已下发',wecom_sent:'已企微下发',wecom_sending:'企微发送中',wecom_partial:'企微部分成功',wecom_unknown:'企微结果待核实',wecom_failed:'企微发送失败'}[issueDeliveryState(issue)]);
 export function recordIssueDownload(state,id,kind,{format='',filename='',role='manager',time=new Date().toLocaleString('sv-SE').slice(0,16)}={}){
  const issue=state.issues.find(i=>i.id===id);
  if(!issue)throw Error('发行记录已取消，不能继续下载');
