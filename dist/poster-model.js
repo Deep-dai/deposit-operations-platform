@@ -1,5 +1,6 @@
 import {compare} from './core.js';
 import {isDirectMaterials,issueProduct,materialFieldErrors,MAX_MATERIAL_PRODUCTS} from './direct-materials.js';
+import {assertIssueEditable,isIssueLocked} from './issue-lifecycle.js';
 
 const copy = value => JSON.parse(JSON.stringify(value));
 const filled = value => value !== '' && value !== null && value !== undefined;
@@ -29,7 +30,7 @@ export function posterDimensions(template,count,{consumerProtectionNumber=''}={}
 }
 
 export function buildPosterModel(state,issue,config=posterConfig(issue)) {
-  if(issue.status==='sent'&&issue.posterSnapshot)return copy(issue.posterSnapshot);
+  if(isIssueLocked(issue)&&issue.posterSnapshot)return copy(issue.posterSnapshot);
   const consumerProtectionNumber=String(config.consumerProtectionNumber||'').trim();
   if(consumerProtectionNumber.length>60)throw Error('消保编号最多 60 字');
   const ids=config.template==='single'?[config.singleId]:config.order.filter(id=>config.selectedIds.includes(id));
@@ -57,7 +58,7 @@ export function buildPosterModel(state,issue,config=posterConfig(issue)) {
 }
 
 export function updatePosterConfig(issue,config) {
-  if(issue.status!=='draft')throw Error('已下发海报不能修改');
+  assertIssueEditable(issue);
   issue.poster=copy(config);
   issue.confirmed=false;
   delete issue.posterSnapshot;

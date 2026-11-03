@@ -3,7 +3,7 @@ import {renderPoster,posterBlob} from './poster-renderer.js';
 import {issueProduct,MAX_MATERIAL_PRODUCTS} from './direct-materials.js';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-export function mountPoster(root,{state,issue,editable,onChange,onError}) {
+export function mountPoster(root,{state,issue,editable,onChange,onError,onDownload=()=>{}}) {
   let config=posterConfig(issue), ticket=0, timer;
   if(issue.posterSnapshot){config.template=issue.posterSnapshot.template;config.consumerProtectionNumber=issue.posterSnapshot.consumerProtectionNumber||'';}
   const product=id=>issueProduct(state,issue,id);
@@ -61,9 +61,12 @@ export function mountPoster(root,{state,issue,editable,onChange,onError}) {
       if(button.hasAttribute('data-poster-download')){
         button.disabled=true;button.textContent='正在生成';
         const model=buildPosterModel(state,issue,config), format=root.querySelector('#posterFormat').value;
-        const blob=await posterBlob(model,format),url=URL.createObjectURL(blob),a=document.createElement('a');
+        const blob=await posterBlob(model,format);
+        if(!state.issues.some(i=>i.id===issue.id))throw Error('发行记录已取消，不能继续下载');
+        const url=URL.createObjectURL(blob),a=document.createElement('a');
         a.href=url;a.download=`${issue.title.replace(/[\\/:*?"<>|]/g,'_')}_${POSTER_TEMPLATES[model.template]}.${format}`;
         document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+        onDownload({format,filename:a.download});
         button.disabled=false;button.textContent='下载海报';return;
       }
       if(!editable)return;

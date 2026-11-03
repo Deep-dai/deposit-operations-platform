@@ -1,6 +1,7 @@
 import {clone,compare,dateValid,now} from './core.js';
 import {isDirectMaterials,directNoticeRows,directNoticeDefaults} from './direct-materials.js';
 import {noticeTextStyle,noticeTitleLayout,attachmentLayout,signoffLayout,noticeLayoutErrors} from './notice-layout.js';
+import {assertIssueEditable,isIssueLocked} from './issue-lifecycle.js';
 
 export const NOTICE_VERSION=1;
 export const COMMON_ATTACHMENTS=[
@@ -83,7 +84,7 @@ export function noticeText(doc){
     '',doc.issuer,chineseDate(doc.date)].join('\n');
 }
 export function saveNotice(state,issue,config=noticeConfig(issue),{record=false}={}){
-  if(issue.status!=='draft')throw Error('已下发通知不能修改');
+  assertIssueEditable(issue);
   const document=buildNoticeDocument(state,issue,config);
   const savedConfig=clone(config);
   if(issue.notice&&(issue.notice.config.channels!==config.channels||issue.notice.document.sourceFingerprint!==document.sourceFingerprint))savedConfig.channelReviewed=false;
@@ -111,7 +112,7 @@ export function noticeErrors(state,issue){
   return [...new Set(errors)];
 }
 export function assertNoticeReady(state,issue){const errors=noticeErrors(state,issue);if(errors.length)throw Error(errors[0]);}
-export function noticeDocument(issue){return clone(issue.status==='sent'?(issue.noticeSnapshot||issue.notice?.document):issue.notice?.document);}
+export function noticeDocument(issue){return clone(isIssueLocked(issue)?(issue.noticeSnapshot||issue.notice?.document):issue.notice?.document);}
 export const escapeHTML=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function noticeHTML(doc){
   const e=value=>escapeHTML(noticeTextStyle(value)),b=doc.body,paragraph=(text,cls='')=>String(text).split(/\r?\n/).map(line=>`<p class="${cls}">${e(line)||'&nbsp;'}</p>`).join('');

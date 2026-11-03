@@ -1,4 +1,5 @@
 import {isDirectMaterials} from './direct-materials.js';
+import {isIssueLocked} from './issue-lifecycle.js';
 import {noticeConfig,noticeDocument,saveNotice,noticeErrors,noticeHTML,escapeHTML as e,PARAGRAPH_LABELS} from './notice-model.js';
 
 export function mountNotice(root,{state,issue,editable,onChange,onError,onDownload}){
@@ -22,7 +23,7 @@ export function mountNotice(root,{state,issue,editable,onChange,onError,onDownlo
     validation();
   }
   function validation(){
-    const errors=issue.status==='sent'?[]:noticeErrors(state,issue),box=root.querySelector('#noticeValidation');
+    const errors=isIssueLocked(issue)?[]:noticeErrors(state,issue),box=root.querySelector('#noticeValidation');
     box.textContent=errors.length?errors.join('；'):isDirectMaterials(issue)?'产品表及附件清单已生成，可下载通知和海报。':'产品表及附件已生成，请核对通知、说明书和海报后确认下发。';
     box.classList.toggle('notice-validation-warning',!!errors.length);
     root.querySelector('[data-notice-download]').disabled=!!errors.length;

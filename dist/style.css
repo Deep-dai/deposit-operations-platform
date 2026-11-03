@@ -22,7 +22,9 @@
 .issuance-preparation .icon{margin-top:3px;color:#748994}
 .issuance-preparation strong{font-size:12px;font-weight:600}
 .issuance-preparation p{margin:3px 0 0;color:var(--muted);font-size:12px}
-.issue-row-actions{display:flex;justify-content:flex-end;align-items:center;gap:16px;white-space:nowrap}
+.issue-row-actions{display:flex;justify-content:flex-end;align-items:center;gap:9px 16px;white-space:nowrap;flex-wrap:wrap;min-width:275px}
+.issue-download-list{margin-top:15px;border-top:1px solid var(--line);padding-top:12px}
+.issue-download-list>div{display:flex;justify-content:space-between;gap:16px;font-size:11px;margin-top:8px;flex-wrap:wrap}.issue-download-list strong{font-weight:500}.issue-download-list span{color:var(--muted)}
 .recipient-section+.recipient-section{margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}
 .recipient-section h3{font-size:12px;font-weight:500;color:#71828b;margin:0 0 12px}
 .issue-candidate-summary{display:flex;gap:12px 24px;flex-wrap:wrap;padding:14px 0 0;color:var(--muted);font-size:12px}

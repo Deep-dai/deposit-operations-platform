@@ -1,3 +1,4 @@
+import {isIssueEditable} from './issue-lifecycle.js';
 export const STATUS = {draft:'草稿',returned:'退回修改',review:'待复核',market:'金市办理中',check:'待一致性校验',difference:'差异待处理',ready:'待发行',issued:'已下发'};
 export const ROLES = {manager:'产品经理',reviewer:'产品复核岗',branch:'分行用户'};
 export const BRANCHES = ['北京分行','上海分行','广州分行','深圳分行','杭州分行','南京分行'];
@@ -120,7 +121,7 @@ export function createIssue(state,ids,title){
  const issue={id:uid('FX'),title,productIds:ids,status:'draft',created:now(),material:'',confirmed:false,recipients:[],history:[{time:now(),action:'创建发行',note:`纳入 ${ids.length} 只产品`}]};state.issues.unshift(issue);return issue;
 }
 export function sendIssue(state,id,recipients){
- const issue=state.issues.find(i=>i.id===id);if(!issue||issue.status!=='draft')throw Error('发行状态已变更');
+ const issue=state.issues.find(i=>i.id===id);if(!isIssueEditable(issue))throw Error('发行状态已变更');
  if(issue.mode==='materials')throw Error('直接制作的发行材料仅供下载，不支持下发');
  if(!issue.material||!issue.confirmed)throw Error('请生成并确认发行材料');
  const targets=[...new Set(recipients)];
