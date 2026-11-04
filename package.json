@@ -5,6 +5,12 @@
   "scripts": {
     "test": "node --test tests/*.test.js",
     "start": "python3 -m http.server 4287 --bind 127.0.0.1 --directory dist",
-    "wecom": "node server/wecom-relay.mjs"
+    "wecom": "node server/wecom-relay.mjs",
+    "assistant": "python3 scripts/serve-preview.py --port 4301",
+    "build:assistant-sdk": "node scripts/build-assistant-sdk.mjs"
+  },
+  "dependencies": {
+    "@cloudbase/js-sdk": "3.11.0",
+    "esbuild": "0.25.12"
   }
 }

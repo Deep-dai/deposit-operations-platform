@@ -1,0 +1,7 @@
+let database;
+const DB='deposit-assistant-documents-v1',HISTORY='deposit-assistant-conversations-v1';
+function db(){return database||(database=new Promise((resolve,reject)=>{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>r.result.createObjectStore('documents',{keyPath:'hash'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(Error('无法打开助手资料，请检查浏览器存储空间'));}));}
+export async function listDocuments(){const d=await db();return new Promise((resolve,reject)=>{const r=d.transaction('documents').objectStore('documents').getAll();r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(Error('未能读取助手资料'));});}
+export async function saveDocument(document){const d=await db();await new Promise((resolve,reject)=>{const tx=d.transaction('documents','readwrite');tx.objectStore('documents').put(document);tx.oncomplete=resolve;tx.onerror=tx.onabort=()=>reject(Error('说明书未能保存，请检查浏览器存储空间'));});return document;}
+export function readConversations(){try{const value=JSON.parse(localStorage.getItem(HISTORY)||'{}');return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}catch{return {};}}
+export function saveConversation(signature,turns){const history=readConversations();history[signature]={updated:Date.now(),turns:turns.slice(-20)};const entries=Object.entries(history).sort((a,b)=>b[1].updated-a[1].updated).slice(0,20);try{localStorage.setItem(HISTORY,JSON.stringify(Object.fromEntries(entries)));}catch{throw Error('回答已生成，但聊天记录未能保存，请复制后检查存储空间');}}

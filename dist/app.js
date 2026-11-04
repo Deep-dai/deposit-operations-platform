@@ -1,3 +1,5 @@
+import {FEATURES} from './features.js';
+import {assistantPage,mountAssistant,disposeAssistant} from './assistant-ui.js';
 import {openWecomSettings,openWecomSend,wecomResults} from './wecom-ui.js';
 import {ensureOperations,visibleOperations,OP_TYPES} from './operations-model.js';
 import {ensureRollingSales} from './rolling-sales.js';
@@ -50,6 +52,7 @@ function route(){return (location.hash.slice(1)||'workbench').split('/').map(par
 
 function breadcrumbs(){
  const [r,sub]=route();
+ if(r==='assistant')return '<span>智能助手</span>'+icon('chevron')+'<b>产品智能助手</b>';
  if(r==='workbench')return `<span>存款经营管理台</span>${icon('chevron')}<b>工作台</b>`;
  if(['planning','briefs','campaigns','operation'].includes(r)){
   const type=({planning:'plan',briefs:'brief',campaigns:'campaign'}[r])||state.operations.documents.find(d=>d.id===sub)?.type;
@@ -70,7 +73,7 @@ function breadcrumbs(){
 function shell(content){
  const [r]=route();
  const nav=(label,to,ic='',cls='')=>`<a class="nav-row ${(r===to||(r==='period'&&to==='series')||(r==='product'&&to==='query')||(r==='issue'&&to==='issuance')||(r==='operation'&&OP_TYPES[state.operations.documents.find(d=>d.id===route()[1])?.type]?.route===to))?'current':''} ${cls}" href="#${to}">${ic?icon(ic):''}<span>${label}</span></a>`;
- return `<aside class="sidebar"><a class="brand" href="#workbench"><span class="brand-mark"><img src="assets/brand/operations-mark.png" alt="" width="40" height="40"></span><div><strong>存款经营管理台</strong></div></a><div class="nav-scroll"><div class="nav-section">工作空间</div>${nav('工作台','workbench','grid','primary')}<div class="nav-section">业务管理</div><button class="nav-row primary active" data-action="toggle-nav" aria-expanded="true">${icon('bank')}<span>结构性存款管理</span><span class="arrow">${icon('down')}</span></button><div class="nav-sub" id="businessNav">${role!=='branch'?`<button class="nav-row" data-action="toggle-sub" aria-expanded="true">产品申报管理<span class="arrow">${icon('down')}</span></button><div class="nav-sub">${nav('普通产品申报','ordinary')}${nav('滚存产品申报','series')}${nav('申报查询','query')}</div>`:''}${nav('发行管理','issuance')}</div><button class="nav-row primary" data-action="toggle-sub" aria-expanded="true">${icon('grid')}<span>产品规划管理</span><span class="arrow">${icon('down')}</span></button><div class="nav-sub">${nav('月度产品规划','planning')}</div><button class="nav-row primary" data-action="toggle-sub" aria-expanded="true">${icon('send')}<span>经营推动管理</span><span class="arrow">${icon('down')}</span></button><div class="nav-sub">${nav('经营通报','briefs')}${nav('营销素材','campaigns')}</div></div></aside><main class="main"><header class="topbar"><button class="toolbar-icon mobile-menu" data-action="mobile-menu" aria-label="展开菜单">${icon('menu')}</button><div class="breadcrumb">${breadcrumbs()}</div><div class="top-actions"><button class="toolbar-icon" data-action="help" aria-label="使用帮助">${icon('help')}</button><div class="role-switch"><span class="avatar">${role==='manager'?'经':role==='reviewer'?'核':'分'}</span><select id="roleSelect" aria-label="当前角色">${Object.entries(ROLES).map(([v,n])=>`<option value="${v}" ${v===role?'selected':''}>${n}</option>`).join('')}</select></div></div></header><div class="page">${content}</div></main>`;
+ return `<aside class="sidebar"><a class="brand" href="#workbench"><span class="brand-mark"><img src="assets/brand/operations-mark.png" alt="" width="40" height="40"></span><div><strong>存款经营管理台</strong></div></a><div class="nav-scroll"><div class="nav-section">工作空间</div>${nav('工作台','workbench','grid','primary')}${FEATURES.productAssistant?nav('智能助手','assistant','help','primary'):''}<div class="nav-section">业务管理</div><button class="nav-row primary active" data-action="toggle-nav" aria-expanded="true">${icon('bank')}<span>结构性存款管理</span><span class="arrow">${icon('down')}</span></button><div class="nav-sub" id="businessNav">${role!=='branch'?`<button class="nav-row" data-action="toggle-sub" aria-expanded="true">产品申报管理<span class="arrow">${icon('down')}</span></button><div class="nav-sub">${nav('普通产品申报','ordinary')}${nav('滚存产品申报','series')}${nav('申报查询','query')}</div>`:''}${nav('发行管理','issuance')}</div><button class="nav-row primary" data-action="toggle-sub" aria-expanded="true">${icon('grid')}<span>产品规划管理</span><span class="arrow">${icon('down')}</span></button><div class="nav-sub">${nav('月度产品规划','planning')}</div><button class="nav-row primary" data-action="toggle-sub" aria-expanded="true">${icon('send')}<span>经营推动管理</span><span class="arrow">${icon('down')}</span></button><div class="nav-sub">${nav('经营通报','briefs')}${nav('营销素材','campaigns')}</div></div></aside><main class="main"><header class="topbar"><button class="toolbar-icon mobile-menu" data-action="mobile-menu" aria-label="展开菜单">${icon('menu')}</button><div class="breadcrumb">${breadcrumbs()}</div><div class="top-actions"><button class="toolbar-icon" data-action="help" aria-label="使用帮助">${icon('help')}</button><div class="role-switch"><span class="avatar">${role==='manager'?'经':role==='reviewer'?'核':'分'}</span><select id="roleSelect" aria-label="当前角色">${Object.entries(ROLES).map(([v,n])=>`<option value="${v}" ${v===role?'selected':''}>${n}</option>`).join('')}</select></div></div></header><div class="page">${content}</div></main>`;
 }
 function title(h,sub='',actions='',eye=''){return `<div class="page-title"><div><h1>${h}</h1><p class="subtitle">${sub}</p></div>${actions?`<div class="title-actions">${actions}</div>`:''}</div>`;}
 function empty(h='暂无记录',text='调整筛选条件，或发起一笔新的产品申报。'){return `<div class="empty">${icon('archive')}<h3>${h}</h3><div>${text}</div></div>`;}
@@ -176,11 +179,13 @@ const ps=i.productIds.map(id=>state.products.find(p=>p.id===id));const draft=isI
 function notice(i,editable){if(!i.material)return `<div class="notice-start">${icon('file')}<h3>生成本次发行通知</h3><p>已选 ${i.productIds.length} 只产品。按通知模板带入产品代码、名称、募集日期及附件清单，再补充成文日期等信息。</p>${editable?btn('生成发行通知','generate-material','primary','file',`data-id="${i.id}"`):'<span class="muted">待产品经理生成发行通知</span>'}<small>海报可直接在“发行海报”中制作，无需先生成通知。</small></div>`;if(i.notice)return '<div id="noticeWorkspace"></div>';return `${editable?'<div class="notice-legacy-hint">已保留原通知内容。点击上方“使用通知模板”，可按说明书要素生成产品表和附件清单。</div>':''}<div class="paper">${editable?`<textarea id="materialEditor" class="paper-editor" aria-label="发行通知内容">${esc(i.material)}</textarea>`:esc(i.material)}</div>`;}
 
 function render(){
+ disposeAssistant();
  const [r,sub,id]=route();
- if(role==='branch'&&!['workbench','issuance','issue','planning','briefs','campaigns','operation'].includes(r)){navigate('issuance');return;}
+ if(role==='branch'&&!['workbench','issuance','issue','planning','briefs','campaigns','operation','assistant'].includes(r)){navigate('issuance');return;}
  if(r==='period'&&!sub){location.replace('#series');return;}
  let content;
- if(r==='workbench')content=workbench();
+ if(r==='assistant'&&FEATURES.productAssistant)content=assistantPage();
+ else if(r==='workbench')content=workbench();
  else if(r==='ordinary')content=formPage('ordinary',sub==='edit'?id:'');
  else if(r==='period')content=['new','edit'].includes(sub)?formPage('rolling',sub==='edit'?id:'',sub==='new'?id:''):empty('页面不存在');
  else if(['planning','briefs','campaigns','operation'].includes(r))content=operationsPage({state,role,branch,route:route()});
@@ -192,6 +197,8 @@ function render(){
  else content=empty('页面不存在',link('返回工作台','workbench','text-button'));
  $('#app').innerHTML=shell(content);
  document.title=`${$('.page h1')?.textContent||'工作台'} · 存款经营管理台`;
+ if(r==='assistant'&&FEATURES.productAssistant)mountAssistant({root:$('.page'),state,contextId:sub||'',toast,showModal,closeModal});
+ if(FEATURES.productAssistant&&['product','issue'].includes(r)&&$('.title-actions'))$('.title-actions').insertAdjacentHTML('beforeend',link('问问助手','assistant/'+encodeURIComponent(sub),'btn','help'));
  if(r==='issue'&&$('#materialView'))materialTab(['notice','poster','prospectus'].includes(id)?id:'notice');
  if($('#operationsPage'))mountOperations({state,role,branch,route:route(),save,render,navigate,toast,showModal,closeModal});
  if(r==='series'&&sub&&$('#seriesSalesPanel'))mountRollingSales({seriesId:sub});
