@@ -1,6 +1,7 @@
 import {assertIssueEditable} from './issue-lifecycle.js';
 const copy=value=>JSON.parse(JSON.stringify(value));
 const time=()=>new Date().toLocaleString('sv-SE').slice(0,16);
+const receiptTime=value=>{const date=new Date(value);return Number.isFinite(date.getTime())?date.toLocaleString('sv-SE',{timeZone:'Asia/Shanghai'}).slice(0,16):time();};
 export function beginWecomDelivery(issue,{jobId,revision,serviceId,target,files,noticeSnapshot,posterSnapshot},role='manager'){
  if(role!=='manager')throw Error('请切换至产品经理发送材料');
  assertIssueEditable(issue);
@@ -20,7 +21,7 @@ export function applyWecomReceipt(state,issue,receipt){
  const previous=delivery.status;
  Object.assign(delivery,{jobId:receipt.id,status:derived,items:copy(items),updated:time()});
  if(derived==='sent'){
-  issue.status='wecom_sent';issue.deliveryStatus='wecom_sent';issue.wecomSentAt=receipt.updated||time();
+  issue.status='wecom_sent';issue.deliveryStatus='wecom_sent';issue.wecomSentAt=receiptTime(receipt.updated);
   if(issue.mode!=='materials')for(const id of issue.productIds){const product=state.products.find(p=>p.id===id);if(product&&product.status!=='issued'){product.status='issued';product.updated=time();(product.history ||= []).unshift({time:time(),action:'发行材料已企微下发',note:issue.title,actor:'产品经理'});}}
  }else if(derived==='failed'){
   delete issue.noticeSnapshot;delete issue.posterSnapshot;

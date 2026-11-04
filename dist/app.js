@@ -250,7 +250,7 @@ function help(){showModal('使用帮助',`<ol class="help-list"><li>通过“普
 document.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b||b.disabled)return;const a=b.dataset.action,id=b.dataset.id,value=b.dataset.value;try{
  if(a==='toggle-nav'){const el=$('#businessNav');el.hidden=!el.hidden;b.setAttribute('aria-expanded',!el.hidden);}else if(a==='toggle-sub'){const el=b.nextElementSibling;el.hidden=!el.hidden;b.setAttribute('aria-expanded',!el.hidden);}else if(a==='mobile-menu')$('.sidebar').classList.toggle('open');
  else if(a==='help')help();else if(a==='close-modal')closeModal();
- else if(a==='wecom-settings'){if(role!=='manager')throw Error('请切换至产品经理');openWecomSettings({showModal,closeModal,onConnected:()=>toast('已连接本机企微发送服务')});}
+ else if(a==='wecom-settings'){if(role!=='manager')throw Error('请切换至产品经理');openWecomSettings({showModal,closeModal,onConnected:()=>toast('已连接企微发送服务')});}
  else if(a==='wecom-send'){const issue=state.issues.find(i=>i.id===id);if(!issue)throw Error('未找到发行记录');openWecomSend({state,issue,getRole:()=>role,showModal,closeModal,persist:()=>localStorage.setItem(STORAGE,JSON.stringify(state)),refresh:render,onError:message=>toast(message,true)});}
  else if(a==='choose-application')applicationChoice();
  else if(a==='start-application'){if(role!=='manager')throw Error('请切换至产品经理');closeModal();navigate(b.dataset.type==='rolling'?'series':'ordinary/new');}

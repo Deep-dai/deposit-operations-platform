@@ -45,7 +45,10 @@ test('企微地址限制固定官方域名和路径，禁止任意目标及异�
 test('先上传再发送，HTTP成功但errcode失败不视为已发送，不回显Webhook',async()=>{
  const seen=[];const upstream=async(url,options)=>{seen.push({url,options});return url.includes('upload_media')?json({errcode:0,media_id:'unit-media'}):json({errcode:0});};
  const uploaded=await uploadFile(WEBHOOK,file(),{fetchImpl:upstream});assert.equal(uploaded.mediaId,'unit-media');
- assert.equal((await sendUploadedFile(WEBHOOK,uploaded.mediaId,{fetchImpl:upstream})).status,'sent');assert.equal(seen.length,2);assert.equal(seen[0].options.body.get('media').name,'发行通知.docx');assert.deepEqual(JSON.parse(seen[1].options.body),{msgtype:'file',file:{media_id:'unit-media'}});assert.equal(seen[1].options.redirect,'error');
+ assert.equal((await sendUploadedFile(WEBHOOK,uploaded.mediaId,{fetchImpl:upstream})).status,'sent');assert.equal(seen.length,2);
+ const uploadForm=await new Request('https://example.invalid/',{method:'POST',headers:seen[0].options.headers,body:seen[0].options.body}).formData();
+ assert.equal(uploadForm.get('media').name,'发行通知.docx');assert.deepEqual(new Uint8Array(await uploadForm.get('media').arrayBuffer()),file().bytes);assert.equal(Number(seen[0].options.headers['Content-Length']),seen[0].options.body.length);
+ assert.deepEqual(JSON.parse(seen[1].options.body),{msgtype:'file',file:{media_id:'unit-media'}});assert.equal(seen[1].options.redirect,'error');
  assert.equal((await sendUploadedFile(WEBHOOK,'x',{fetchImpl:async()=>json({errcode:93000,errmsg:WEBHOOK})})).status,'failed');
  assert.ok(!JSON.stringify(await sendUploadedFile(WEBHOOK,'x',{fetchImpl:async()=>json({errcode:93000,errmsg:WEBHOOK})})).includes('test-key'));
  assert.equal((await sendUploadedFile(WEBHOOK,'x',{fetchImpl:async()=>{throw Error(WEBHOOK);}})).status,'unknown');
@@ -112,7 +115,7 @@ function begin(issue,files=[{kind:'notice',name:'通知.docx'}]){return beginWec
 function receipt(issue,statuses){const d=issue.wecomDelivery,items=d.items.map((item,index)=>({...item,status:statuses[index],message:'接口结果'}));return {id:d.jobId,issueId:issue.id,revision:d.revision,targetId:d.targetId,items,status:statuses.every(s=>s==='sent')?'sent':statuses.includes('sending')?'pending':statuses.includes('unknown')?'unknown':statuses.includes('sent')?'partial':'failed',updated:'2026-11-03T12:00:00Z'};}
 test('发起企微发送即锁定，成功回执才标记已企微下发，普通产品同步发行',()=>{
  const {state,product,issue}=issueFixture();begin(issue);assert.equal(issueDeliveryLabel(issue),'企微发送中');assert.equal(isIssueEditable(issue),false);assert.equal(canCancelIssue(issue),false);assert.throws(()=>cancelIssue(state,issue.id),/锁定/);
- applyWecomReceipt(state,issue,receipt(issue,['sent']));assert.equal(issueDeliveryLabel(issue),'已企微下发');assert.equal(product.status,'issued');assert.equal(issue.recipients.length,0);assert.equal(canCancelIssue(issue),false);assert.throws(()=>saveNotice(state,issue,noticeConfig(issue)),/不能修改/);
+ applyWecomReceipt(state,issue,receipt(issue,['sent']));assert.equal(issueDeliveryLabel(issue),'已企微下发');assert.equal(issue.wecomSentAt,'2026-11-03 20:00');assert.equal(product.status,'issued');assert.equal(issue.recipients.length,0);assert.equal(canCancelIssue(issue),false);assert.throws(()=>saveNotice(state,issue,noticeConfig(issue)),/不能修改/);
  const before=clone(issue);assert.throws(()=>applyWecomReceipt(state,issue,{...receipt(issue,['failed']),status:'sent'}),/不一致/);assert.deepEqual(issue,before);
 });
 test('全部明确失败仍可修改取消，部分成功和结果不明确继续锁定，回执不能串批次',()=>{
