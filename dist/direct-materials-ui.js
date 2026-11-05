@@ -2,7 +2,6 @@ import {readProspectus,storeOriginal} from './prospectus-files.js';
 import {MATERIAL_FIELDS,MAX_MATERIAL_PRODUCTS,directBatchErrors,materialReadErrors,createDirectMaterials} from './direct-materials.js';
 import {escapeHTML as e} from './notice-model.js';
 const fieldLabel=(entry,key,label)=>entry.fields.rateMode==='range'&&key==='low'?'最低年化收益率（%）':entry.fields.rateMode==='range'&&key==='high'?'最高年化收益率（%）':label;
-const dragIcon='<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><circle cx="5" cy="4" r="1.2"/><circle cx="11" cy="4" r="1.2"/><circle cx="5" cy="8" r="1.2"/><circle cx="11" cy="8" r="1.2"/><circle cx="5" cy="12" r="1.2"/><circle cx="11" cy="12" r="1.2"/></svg>';
 
 export function openDirectMaterials({state,role,showModal,closeModal,onCreated,onError}){
  if(role!=='manager')throw Error('请切换至产品经理');
@@ -23,9 +22,8 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
  function renderOrder(){
   endDrag();
   const scroll=order.querySelector('.direct-order-list')?.scrollTop||0;
-  order.innerHTML=entries.length?`<section class="direct-order"><h3>产品排列顺序 <span class="count">${entries.length}／${MAX_MATERIAL_PRODUCTS}</span></h3><p id="directOrderHelp">拖动左侧手柄调整顺序，也可选中手柄后按 ↑ 或 ↓。此顺序用于发行通知的产品表及附件清单，也作为海报的初始顺序。</p><ol class="direct-order-list">${entries.map((entry,index)=>`
-   <li>
-    <button type="button" class="direct-order-handle" data-direct-sort="${index}" aria-label="调整第${index+1}只产品的顺序" aria-describedby="directOrderHelp" ${busy||entries.length<2?'disabled':''}>${dragIcon}</button>
+  order.innerHTML=entries.length?`<section class="direct-order"><h3>产品排列顺序 <span class="count">${entries.length}／${MAX_MATERIAL_PRODUCTS}</span></h3><p>拖动产品调整顺序。此顺序用于发行通知、附件清单及海报的初始排列。</p><ol class="direct-order-list">${entries.map((entry,index)=>`
+   <li ${busy||entries.length<2?'':`data-direct-sort="${index}" tabindex="0" aria-label="第${index+1}只产品，可拖动或按方向键调整顺序"`}>
     <span class="direct-order-number">${index+1}</span>
     <div class="direct-order-name"><strong>${e(entry.fields.name||entry.result.file?.name||'产品说明书')}</strong><small>${e(entry.fields.marketNumber||'产品代码待核对')}</small></div>
     <button type="button" class="text-button direct-order-review" data-direct-jump="${index}">核对信息</button>
@@ -46,9 +44,9 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
   renderEntries();errorText('');
   progress.textContent=`已将第${from+1}只产品移到第${to+1}位。`;
   if(keyboard){
-   const handle=order.querySelector(`[data-direct-sort="${to}"]`);
-   handle.focus({preventScroll:true});
-   handle.scrollIntoView({block:'nearest'});
+   const row=order.querySelector(`[data-direct-sort="${to}"]`);
+   row.focus({preventScroll:true});
+   row.scrollIntoView({block:'nearest'});
   }
  }
  function markDrop(current,row,after=false){
@@ -62,7 +60,7 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
   cancelAnimationFrame(current.frame);
   markDrop(current,null);
   current.row.classList.remove('sorting');
-  if(current.handle.hasPointerCapture(current.id))current.handle.releasePointerCapture(current.id);
+  if(current.row.hasPointerCapture(current.id))current.row.releasePointerCapture(current.id);
  }
  function updateDrop(current,scroll){
   const bounds=current.list.getBoundingClientRect(),modal=current.list.closest('.modal-body')?.getBoundingClientRect();
@@ -91,12 +89,12 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
   drag.frame=requestAnimationFrame(trackDrag);
  }
  order.onpointerdown=event=>{
-  const handle=event.target.closest('[data-direct-sort]');
-  if(!handle||handle.disabled||busy||drag||!event.isPrimary||event.button!==0)return;
-  const row=handle.closest('li'),list=row.parentElement;
-  drag={id:event.pointerId,handle,row,list,from:Number(handle.dataset.directSort),to:null,
+  const row=event.target.closest('[data-direct-sort]');
+  if(!row||event.target.closest('button')||busy||drag||!event.isPrimary||event.button!==0)return;
+  const list=row.parentElement;
+  drag={id:event.pointerId,row,list,from:Number(row.dataset.directSort),to:null,
    targets:[...list.children].filter(item=>item!==row),startX:event.clientX,startY:event.clientY};
-  handle.setPointerCapture(event.pointerId);
+  row.setPointerCapture(event.pointerId);
  };
  order.onpointermove=event=>{
   if(!drag||event.pointerId!==drag.id)return;
@@ -119,10 +117,9 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
  order.onpointercancel=order.onlostpointercapture=event=>{if(event.pointerId===drag?.id)endDrag();};
  order.onkeydown=event=>{
   if(drag&&event.key==='Escape'){event.preventDefault();endDrag();return;}
-  const handle=event.target.closest('[data-direct-sort]');
-  if(!handle||handle.disabled||busy||drag||!['ArrowUp','ArrowDown'].includes(event.key))return;
+  if(!event.target.matches('[data-direct-sort]')||busy||drag||!['ArrowUp','ArrowDown'].includes(event.key))return;
   event.preventDefault();
-  const index=Number(handle.dataset.directSort);
+  const index=Number(event.target.dataset.directSort);
   moveEntry(index,index+(event.key==='ArrowUp'?-1:1),{keyboard:true});
  };
  root.oninput=event=>{const input=event.target;if(input.dataset.directField){entries[Number(input.dataset.entry)].fields[input.dataset.directField]=input.value;if(['name','marketNumber'].includes(input.dataset.directField))renderOrder();errorText('');}};
