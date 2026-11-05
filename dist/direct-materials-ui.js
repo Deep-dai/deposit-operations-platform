@@ -5,12 +5,14 @@ const fieldLabel=(entry,key,label)=>entry.fields.rateMode==='range'&&key==='low'
 
 export function openDirectMaterials({state,role,showModal,closeModal,onCreated,onError}){
  if(role!=='manager')throw Error('请切换至产品经理');
- const entries=[];let busy=false,serial=0,drag=null;
+ const entries=[];let busy=false,serial=0,drag=null,lastMove=null;
  showModal('直接制作发行材料',`<div id="directMaterialsIntake"><p class="direct-intro">上传每期产品说明书，读取产品信息后制作发行通知及海报。</p><label class="direct-title">材料名称（选填）<input id="directMaterialTitle" maxlength="160" placeholder="留空时自动命名"></label><label class="source-upload direct-upload" id="directDropZone"><span class="btn primary">批量上传说明书</span><input id="directMaterialFiles" aria-label="批量上传说明书" type="file" accept=".pdf,.docx,.doc" multiple><p>可一次选择多个文件，也可分次追加或拖入文件；每批最多${MAX_MATERIAL_PRODUCTS}份。</p><small>支持PDF／Word（.docx），每份对应一只产品；文件在当前浏览器读取并保存。</small></label><div id="directReadProgress" role="status"></div><div id="directMaterialOrder"></div><div id="directMaterialEntries"></div><div id="directMaterialErrors" class="source-issues" role="alert"></div></div>`,
  '<button type="button" class="btn" data-action="close-modal">取消</button><button type="button" class="btn primary" id="createDirectMaterials" disabled>生成发行材料</button>',true);
  const root=document.querySelector('#directMaterialsIntake'),host=root.querySelector('#directMaterialEntries'),order=root.querySelector('#directMaterialOrder'),dropZone=root.querySelector('#directDropZone'),progress=root.querySelector('#directReadProgress'),errors=root.querySelector('#directMaterialErrors'),create=document.querySelector('#createDirectMaterials');
- const alive=()=>root.isConnected&&root.closest('dialog')?.open;
+ const dialog=root.closest('dialog'),modalHead=dialog.querySelector('.modal-head'),modalFooter=dialog.querySelector('.modal-footer');
+ const alive=()=>root.isConnected&&dialog.open;
  const errorText=message=>{errors.textContent=message;};
+ const entryName=entry=>entry.fields.name||entry.result.file?.name||'产品说明书';
  const input=(entry,index,key,label)=>{
   const value=entry.fields[key]??(key==='rateMode'?'tiers':''),type=['start','end','value','maturity'].includes(key)?'date':['tenor','low','mid','high'].includes(key)?'number':'text';
   label=fieldLabel(entry,key,label);
@@ -22,10 +24,13 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
  function renderOrder(){
   endDrag();
   const scroll=order.querySelector('.direct-order-list')?.scrollTop||0;
-  order.innerHTML=entries.length?`<section class="direct-order"><h3>产品排列顺序 <span class="count">${entries.length}／${MAX_MATERIAL_PRODUCTS}</span></h3><p>拖动产品调整顺序。此顺序用于发行通知、附件清单及海报的初始排列。</p><ol class="direct-order-list">${entries.map((entry,index)=>`
-   <li ${busy||entries.length<2?'':`data-direct-sort="${index}" tabindex="0" aria-label="第${index+1}只产品，可拖动或按方向键调整顺序"`}>
+  const note=lastMove
+   ?`${lastMove.entry.fields.marketNumber||entryName(lastMove.entry)} 已从第 ${lastMove.from+1} 位移到第 ${lastMove.to+1} 位。`
+   :'拖动产品调整顺序。此顺序用于发行通知、附件清单及海报的初始排列。';
+  order.innerHTML=entries.length?`<section class="direct-order"><h3>产品排列顺序 <span class="count">${entries.length}／${MAX_MATERIAL_PRODUCTS}</span></h3><p class="${lastMove?'direct-order-confirmation':''}" role="status">${e(note)}</p><ol class="direct-order-list">${entries.map((entry,index)=>`
+   <li class="${lastMove?.entry===entry?'recent-move':''}" ${busy||entries.length<2?'':`data-direct-sort="${index}" tabindex="0" aria-label="第${index+1}只产品，可拖动或按方向键调整顺序"`}>
     <span class="direct-order-number">${index+1}</span>
-    <div class="direct-order-name"><strong>${e(entry.fields.name||entry.result.file?.name||'产品说明书')}</strong><small>${e(entry.fields.marketNumber||'产品代码待核对')}</small></div>
+    <div class="direct-order-name"><strong>${e(entryName(entry))}</strong><small>${e(entry.fields.marketNumber||'产品代码待核对')}</small></div>
     <button type="button" class="text-button direct-order-review" data-direct-jump="${index}">核对信息</button>
    </li>`).join('')}</ol></section>`:'';
   const list=order.querySelector('.direct-order-list');if(list)list.scrollTop=scroll;
@@ -40,18 +45,18 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
  }
  function moveEntry(from,to,{keyboard=false}={}){
   if(busy||from===to||to<0||to>=entries.length)return;
-  entries.splice(to,0,entries.splice(from,1)[0]);
+  const [entry]=entries.splice(from,1);
+  entries.splice(to,0,entry);
+  lastMove={entry,from,to};
   renderEntries();errorText('');
-  progress.textContent=`已将第${from+1}只产品移到第${to+1}位。`;
-  if(keyboard){
-   const row=order.querySelector(`[data-direct-sort="${to}"]`);
-   row.focus({preventScroll:true});
-   row.scrollIntoView({block:'nearest'});
-  }
+  const row=order.querySelector(`[data-direct-sort="${to}"]`);
+  if(keyboard)row.focus({preventScroll:true});
+  row.scrollIntoView({block:'nearest'});
  }
  function markDrop(current,row,after=false){
+  if(row===current.marker&&after===current.after)return;
   current.marker?.classList.remove('drop-before','drop-after');
-  current.marker=row;
+  current.marker=row;current.after=after;
   row?.classList.add(after?'drop-after':'drop-before');
  }
  function endDrag(){
@@ -59,12 +64,15 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
   const current=drag;drag=null;
   cancelAnimationFrame(current.frame);
   markDrop(current,null);
+  current.preview?.remove();
   current.row.classList.remove('sorting');
+  current.list.classList.remove('drag-active');
   if(current.row.hasPointerCapture(current.id))current.row.releasePointerCapture(current.id);
  }
  function updateDrop(current,scroll){
-  const bounds=current.list.getBoundingClientRect(),modal=current.list.closest('.modal-body')?.getBoundingClientRect();
-  const top=Math.max(bounds.top,modal?.top??0,0),bottom=Math.min(bounds.bottom,modal?.bottom??innerHeight,innerHeight);
+  const bounds=current.list.getBoundingClientRect();
+  const top=Math.max(bounds.top,modalHead.getBoundingClientRect().bottom,0);
+  const bottom=Math.min(bounds.bottom,modalFooter.getBoundingClientRect().top,innerHeight);
   if(current.x<bounds.left||current.x>bounds.right||current.y<top||current.y>bottom){
    current.to=null;
    markDrop(current,null);
@@ -83,9 +91,31 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
   if(after)current.to=current.targets.length;
   markDrop(current,current.to===current.from?null:after?current.targets.at(-1):current.targets[current.to],after);
  }
+ function showDragPreview(current){
+  const preview=document.createElement('div');
+  preview.className='direct-order-preview';
+  preview.setAttribute('aria-hidden','true');
+  const name=document.createElement('strong');
+  name.textContent=entryName(entries[current.from]);
+  const position=document.createElement('small');
+  preview.append(name,position);
+  dialog.append(preview);
+  current.preview=preview;
+  current.previewPosition=position;
+ }
+ function updateDragPreview(current){
+  const {preview,previewPosition,from,to,x,y}=current;
+  const position=to===null?'松手取消排序':to===from?`放回第 ${from+1} 位`:`第 ${from+1} 位 → 第 ${to+1} 位`;
+  if(previewPosition.textContent!==position)previewPosition.textContent=position;
+  const left=Math.max(8,Math.min(x+14,innerWidth-preview.offsetWidth-8));
+  const below=y+16;
+  const top=below+preview.offsetHeight<innerHeight-8?below:Math.max(8,y-preview.offsetHeight-12);
+  preview.style.transform=`translate3d(${left}px,${top}px,0)`;
+ }
  function trackDrag(){
   if(!drag||!alive()){endDrag();return;}
   updateDrop(drag,true);
+  updateDragPreview(drag);
   drag.frame=requestAnimationFrame(trackDrag);
  }
  order.onpointerdown=event=>{
@@ -102,6 +132,8 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
   if(drag.active||Math.hypot(drag.x-drag.startX,drag.y-drag.startY)<5)return;
   drag.active=true;
   drag.row.classList.add('sorting');
+  drag.list.classList.add('drag-active');
+  showDragPreview(drag);
   trackDrag();
  };
  order.onpointerup=event=>{
@@ -131,7 +163,7 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
  async function readFiles(files){
   if(busy||!files.length||!alive())return;
   if(entries.length+files.length>MAX_MATERIAL_PRODUCTS){errorText(`每批最多${MAX_MATERIAL_PRODUCTS}份产品说明书，当前已有${entries.length}份。`);return;}
-  busy=true;const current=++serial;renderEntries();errorText('');
+  busy=true;lastMove=null;const current=++serial;renderEntries();errorText('');
   try{
    for(const [index,file]of files.entries()){
     progress.textContent=`正在读取 ${index+1}／${files.length}：${file.name}`;
@@ -148,7 +180,7 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
  root.onclick=event=>{
   const button=event.target.closest('button');if(!button||busy)return;
   if(button.hasAttribute('data-direct-jump')){const card=host.querySelector(`[data-direct-card="${Number(button.dataset.directJump)}"]`);card?.scrollIntoView({block:'start',behavior:'smooth'});card?.querySelector('input')?.focus({preventScroll:true});}
-  if(button.hasAttribute('data-direct-remove')){entries.splice(Number(button.dataset.directRemove),1);renderEntries();errorText('');progress.textContent=entries.length?`当前 ${entries.length} 份说明书`:'';}
+  if(button.hasAttribute('data-direct-remove')){entries.splice(Number(button.dataset.directRemove),1);lastMove=null;renderEntries();errorText('');progress.textContent=entries.length?`当前 ${entries.length} 份说明书`:'';}
   if(button.hasAttribute('data-direct-original')){const file=entries[Number(button.dataset.directOriginal)].result.file,url=URL.createObjectURL(file);window.open(url,'_blank','noopener');setTimeout(()=>URL.revokeObjectURL(url),60000);}
  };
  create.onclick=async()=>{
