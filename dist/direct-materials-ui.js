@@ -2,10 +2,11 @@ import {readProspectus,storeOriginal} from './prospectus-files.js';
 import {MATERIAL_FIELDS,MAX_MATERIAL_PRODUCTS,directBatchErrors,materialReadErrors,createDirectMaterials} from './direct-materials.js';
 import {escapeHTML as e} from './notice-model.js';
 const fieldLabel=(entry,key,label)=>entry.fields.rateMode==='range'&&key==='low'?'最低年化收益率（%）':entry.fields.rateMode==='range'&&key==='high'?'最高年化收益率（%）':label;
+const dragIcon='<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><circle cx="5" cy="4" r="1.2"/><circle cx="11" cy="4" r="1.2"/><circle cx="5" cy="8" r="1.2"/><circle cx="11" cy="8" r="1.2"/><circle cx="5" cy="12" r="1.2"/><circle cx="11" cy="12" r="1.2"/></svg>';
 
 export function openDirectMaterials({state,role,showModal,closeModal,onCreated,onError}){
  if(role!=='manager')throw Error('请切换至产品经理');
- const entries=[];let busy=false,serial=0;
+ const entries=[];let busy=false,serial=0,drag=null;
  showModal('直接制作发行材料',`<div id="directMaterialsIntake"><p class="direct-intro">上传每期产品说明书，读取产品信息后制作发行通知及海报。</p><label class="direct-title">材料名称（选填）<input id="directMaterialTitle" maxlength="160" placeholder="留空时自动命名"></label><label class="source-upload direct-upload" id="directDropZone"><span class="btn primary">批量上传说明书</span><input id="directMaterialFiles" aria-label="批量上传说明书" type="file" accept=".pdf,.docx,.doc" multiple><p>可一次选择多个文件，也可分次追加或拖入文件；每批最多${MAX_MATERIAL_PRODUCTS}份。</p><small>支持PDF／Word（.docx），每份对应一只产品；文件在当前浏览器读取并保存。</small></label><div id="directReadProgress" role="status"></div><div id="directMaterialOrder"></div><div id="directMaterialEntries"></div><div id="directMaterialErrors" class="source-issues" role="alert"></div></div>`,
  '<button type="button" class="btn" data-action="close-modal">取消</button><button type="button" class="btn primary" id="createDirectMaterials" disabled>生成发行材料</button>',true);
  const root=document.querySelector('#directMaterialsIntake'),host=root.querySelector('#directMaterialEntries'),order=root.querySelector('#directMaterialOrder'),dropZone=root.querySelector('#directDropZone'),progress=root.querySelector('#directReadProgress'),errors=root.querySelector('#directMaterialErrors'),create=document.querySelector('#createDirectMaterials');
@@ -20,8 +21,15 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
   return `<label class="direct-field ${key==='name'?'direct-name':''}">${label}${['family','rateMode','low','mid','high'].includes(key)?'':' <span class="required">*</span>'}${control}</label>`;
  };
  function renderOrder(){
+  endDrag();
   const scroll=order.querySelector('.direct-order-list')?.scrollTop||0;
-  order.innerHTML=entries.length?`<section class="direct-order"><h3>产品排列顺序 <span class="count">${entries.length}／${MAX_MATERIAL_PRODUCTS}</span></h3><p>此顺序用于发行通知的产品表及附件清单，也作为海报的初始顺序。</p><ol class="direct-order-list">${entries.map((entry,index)=>`<li><span class="direct-order-number">${index+1}</span><div class="direct-order-name"><strong>${e(entry.fields.name||entry.result.file?.name||'产品说明书')}</strong><small>${e(entry.fields.marketNumber||'产品代码待核对')}</small></div><div class="direct-order-actions"><button type="button" class="btn small" data-direct-move="${index}" data-direction="-1" aria-label="上移第${index+1}只产品" ${busy||index===0?'disabled':''}>上移</button><button type="button" class="btn small" data-direct-move="${index}" data-direction="1" aria-label="下移第${index+1}只产品" ${busy||index===entries.length-1?'disabled':''}>下移</button><button type="button" class="text-button" data-direct-jump="${index}">核对信息</button></div></li>`).join('')}</ol></section>`:'';
+  order.innerHTML=entries.length?`<section class="direct-order"><h3>产品排列顺序 <span class="count">${entries.length}／${MAX_MATERIAL_PRODUCTS}</span></h3><p id="directOrderHelp">拖动左侧手柄调整顺序，也可选中手柄后按 ↑ 或 ↓。此顺序用于发行通知的产品表及附件清单，也作为海报的初始顺序。</p><ol class="direct-order-list">${entries.map((entry,index)=>`
+   <li>
+    <button type="button" class="direct-order-handle" data-direct-sort="${index}" aria-label="调整第${index+1}只产品的顺序" aria-describedby="directOrderHelp" ${busy||entries.length<2?'disabled':''}>${dragIcon}</button>
+    <span class="direct-order-number">${index+1}</span>
+    <div class="direct-order-name"><strong>${e(entry.fields.name||entry.result.file?.name||'产品说明书')}</strong><small>${e(entry.fields.marketNumber||'产品代码待核对')}</small></div>
+    <button type="button" class="text-button direct-order-review" data-direct-jump="${index}">核对信息</button>
+   </li>`).join('')}</ol></section>`:'';
   const list=order.querySelector('.direct-order-list');if(list)list.scrollTop=scroll;
  }
  function renderEntries(){
@@ -32,6 +40,91 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
   }).join('');
   create.disabled=busy||!entries.length;root.querySelector('#directMaterialFiles').disabled=busy;
  }
+ function moveEntry(from,to,{keyboard=false}={}){
+  if(busy||from===to||to<0||to>=entries.length)return;
+  entries.splice(to,0,entries.splice(from,1)[0]);
+  renderEntries();errorText('');
+  progress.textContent=`已将第${from+1}只产品移到第${to+1}位。`;
+  if(keyboard){
+   const handle=order.querySelector(`[data-direct-sort="${to}"]`);
+   handle.focus({preventScroll:true});
+   handle.scrollIntoView({block:'nearest'});
+  }
+ }
+ function markDrop(current,row,after=false){
+  current.marker?.classList.remove('drop-before','drop-after');
+  current.marker=row;
+  row?.classList.add(after?'drop-after':'drop-before');
+ }
+ function endDrag(){
+  if(!drag)return;
+  const current=drag;drag=null;
+  cancelAnimationFrame(current.frame);
+  markDrop(current,null);
+  current.row.classList.remove('sorting');
+  if(current.handle.hasPointerCapture(current.id))current.handle.releasePointerCapture(current.id);
+ }
+ function updateDrop(current,scroll){
+  const bounds=current.list.getBoundingClientRect(),modal=current.list.closest('.modal-body')?.getBoundingClientRect();
+  const top=Math.max(bounds.top,modal?.top??0,0),bottom=Math.min(bounds.bottom,modal?.bottom??innerHeight,innerHeight);
+  if(current.x<bounds.left||current.x>bounds.right||current.y<top||current.y>bottom){
+   current.to=null;
+   markDrop(current,null);
+   return;
+  }
+  if(scroll){
+   const edge=Math.min(42,(bottom-top)/3);
+   if(current.y<top+edge)current.list.scrollTop-=Math.ceil((top+edge-current.y)/4);
+   if(current.y>bottom-edge)current.list.scrollTop+=Math.ceil((current.y-bottom+edge)/4);
+  }
+  current.to=current.targets.findIndex(row=>{
+   const rect=row.getBoundingClientRect();
+   return current.y<rect.top+rect.height/2;
+  });
+  const after=current.to===-1;
+  if(after)current.to=current.targets.length;
+  markDrop(current,current.to===current.from?null:after?current.targets.at(-1):current.targets[current.to],after);
+ }
+ function trackDrag(){
+  if(!drag||!alive()){endDrag();return;}
+  updateDrop(drag,true);
+  drag.frame=requestAnimationFrame(trackDrag);
+ }
+ order.onpointerdown=event=>{
+  const handle=event.target.closest('[data-direct-sort]');
+  if(!handle||handle.disabled||busy||drag||!event.isPrimary||event.button!==0)return;
+  const row=handle.closest('li'),list=row.parentElement;
+  drag={id:event.pointerId,handle,row,list,from:Number(handle.dataset.directSort),to:null,
+   targets:[...list.children].filter(item=>item!==row),startX:event.clientX,startY:event.clientY};
+  handle.setPointerCapture(event.pointerId);
+ };
+ order.onpointermove=event=>{
+  if(!drag||event.pointerId!==drag.id)return;
+  drag.x=event.clientX;drag.y=event.clientY;
+  if(drag.active||Math.hypot(drag.x-drag.startX,drag.y-drag.startY)<5)return;
+  drag.active=true;
+  drag.row.classList.add('sorting');
+  trackDrag();
+ };
+ order.onpointerup=event=>{
+  if(!drag||event.pointerId!==drag.id)return;
+  const current=drag;
+  if(current.active){
+   current.x=event.clientX;current.y=event.clientY;
+   updateDrop(current,false);
+  }
+  endDrag();
+  if(current.active&&current.to!==null)moveEntry(current.from,current.to);
+ };
+ order.onpointercancel=order.onlostpointercapture=event=>{if(event.pointerId===drag?.id)endDrag();};
+ order.onkeydown=event=>{
+  if(drag&&event.key==='Escape'){event.preventDefault();endDrag();return;}
+  const handle=event.target.closest('[data-direct-sort]');
+  if(!handle||handle.disabled||busy||drag||!['ArrowUp','ArrowDown'].includes(event.key))return;
+  event.preventDefault();
+  const index=Number(handle.dataset.directSort);
+  moveEntry(index,index+(event.key==='ArrowUp'?-1:1),{keyboard:true});
+ };
  root.oninput=event=>{const input=event.target;if(input.dataset.directField){entries[Number(input.dataset.entry)].fields[input.dataset.directField]=input.value;if(['name','marketNumber'].includes(input.dataset.directField))renderOrder();errorText('');}};
  root.onchange=async event=>{
   if(event.target.dataset.directField){const entry=entries[Number(event.target.dataset.entry)];entry.fields[event.target.dataset.directField]=event.target.value;if(event.target.dataset.directField==='rateMode'){if(entry.fields.rateMode==='range')entry.fields.mid='';renderEntries();}errorText('');return;}
@@ -57,7 +150,6 @@ export function openDirectMaterials({state,role,showModal,closeModal,onCreated,o
  dropZone.ondrop=event=>{event.preventDefault();dropZone.classList.remove('dragging');void readFiles([...event.dataTransfer.files]);};
  root.onclick=event=>{
   const button=event.target.closest('button');if(!button||busy)return;
-  if(button.hasAttribute('data-direct-move')){const index=Number(button.dataset.directMove),to=index+Number(button.dataset.direction);if(to<0||to>=entries.length)return;entries.splice(to,0,entries.splice(index,1)[0]);renderEntries();errorText('');progress.textContent=`已调整产品顺序，共${entries.length}份说明书。`;}
   if(button.hasAttribute('data-direct-jump')){const card=host.querySelector(`[data-direct-card="${Number(button.dataset.directJump)}"]`);card?.scrollIntoView({block:'start',behavior:'smooth'});card?.querySelector('input')?.focus({preventScroll:true});}
   if(button.hasAttribute('data-direct-remove')){entries.splice(Number(button.dataset.directRemove),1);renderEntries();errorText('');progress.textContent=entries.length?`当前 ${entries.length} 份说明书`:'';}
   if(button.hasAttribute('data-direct-original')){const file=entries[Number(button.dataset.directOriginal)].result.file,url=URL.createObjectURL(file);window.open(url,'_blank','noopener');setTimeout(()=>URL.revokeObjectURL(url),60000);}
