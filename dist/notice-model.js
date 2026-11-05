@@ -46,16 +46,19 @@ export function noticeRows(state,issue){
 
 export function productScope(rows){
   const codes=rows.map(r=>r.name.match(/([A-Z]+)(\d+)期/)?.slice(1));
-  if(codes.every(Boolean)){
-    const prefix=codes[0][0],width=codes[0][1].length;
-    const nums=[...new Set(codes.map(c=>Number(c[1])))].sort((a,b)=>a-b);
-    if(codes.every(c=>c[0]===prefix&&c[1].length===width)&&nums.length===rows.length&&nums.at(-1)-nums[0]===nums.length-1){
-      const first=`${prefix}${String(nums[0]).padStart(width,'0')}`,last=`${prefix}${String(nums.at(-1)).padStart(width,'0')}`;
-      return `结构性存款${first}${nums.length>1?'-'+last:''}期产品`;
+  if(!codes.length||!codes.every(Boolean))return rows.length===1?rows[0].name:`${rows.length}款结构性存款产品`;
+  codes.sort(([a,first],[b,second])=>a.localeCompare(b)||first.length-second.length||first.localeCompare(second));
+  const ranges=[];
+  for(const [prefix,digits] of codes){
+    const range=ranges.at(-1);
+    if(range?.prefix===prefix&&range.end.length===digits.length&&BigInt(digits)<=BigInt(range.end)+1n){
+      range.end=digits;
+    }else{
+      ranges.push({prefix,start:digits,end:digits});
     }
-    return `结构性存款${[...new Set(codes.map(c=>c.join('')))].join('、')}期产品`;
   }
-  return rows.length===1?rows[0].name:`${rows.length}款结构性存款产品`;
+  const labels=ranges.map(({prefix,start,end})=>start===end?`${prefix}${start}`:`${prefix}${start}-${prefix}${end}`);
+  return `结构性存款${labels.join('、')}期产品`;
 }
 export const chineseDate=value=>dateValid(value)?`${Number(value.slice(0,4))}年${Number(value.slice(5,7))}月${Number(value.slice(8))}日`:'';
 export const shortDate=value=>`${Number(value.slice(5,7))}月${Number(value.slice(8))}日`;

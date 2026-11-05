@@ -2,9 +2,10 @@
 export const NOTICE_LAYOUT=Object.freeze({page:{width:11906,height:16838},margin:{top:1899,bottom:1843,left:1474,right:1417},bodyHalfPoints:32,titleHalfPoints:44,tableHalfPoints:21,lineTwips:590,gridLines:22,titleMaxEm:20.4,tableWidths:[1300,4725,1495,1495]});
 export const noticeTextStyle=text=>String(text??'').replace(/\(/g,'（').replace(/\)/g,'）');
 export function textEmWidth(text){return [...String(text)].reduce((sum,char)=>sum+(/[\r\n]/.test(char)?0:char.codePointAt(0)<128?.5:1),0);}
-function balancedLines(tokens){
- const limit=NOTICE_LAYOUT.titleMaxEm,total=tokens.reduce((n,t)=>n+textEmWidth(t),0),sums=[0];
- for(const token of tokens)sums.push(sums.at(-1)+textEmWidth(token));
+function balancedLines(tokens,measure){
+ const limit=NOTICE_LAYOUT.titleMaxEm,sums=[0];
+ for(const token of tokens)sums.push(sums.at(-1)+measure(token));
+ const total=sums.at(-1);
  for(let count=Math.max(2,Math.ceil(total/limit));count<=tokens.length;count++){
   const target=total/count,memo=new Map();
   function solve(start,left){
@@ -29,18 +30,20 @@ export function noticeTitleLayout(value){
   const lines=text.split(/\r?\n/).map(line=>line.trim());
   return {lines,errors:[...(lines.some(line=>!line)?['标题不能包含空行']:[]),...(lines.some(line=>textEmWidth(line)>NOTICE_LAYOUT.titleMaxEm)?['标题单行过长，请按完整词意调整换行']:[])]};
  }
- if(textEmWidth(text)<=NOTICE_LAYOUT.titleMaxEm)return {lines:[text],errors:[]};
  const standard=text.match(/^(关于发行结构性存款)(.+?)(期产品的通知)$/);let tokens;
  if(standard&&/^[A-Z\d、,，\-－—]+$/.test(standard[2])){
   const products=standard[2].match(/[A-Z]+\d+(?:[\-－—][A-Z]*\d+)?(?:、|,|，)?/g);
   if(products&&products.join('')===standard[2]){products[products.length-1]+=standard[3];tokens=[standard[1],...products];}
  }
+ // Leave room for the wider letters and digits used by fallback title fonts.
+ const measure=tokens?line=>textEmWidth(line)+.1*(line.match(/[A-Z0-9]/g)?.length||0):textEmWidth;
+ if(measure(text)<=NOTICE_LAYOUT.titleMaxEm)return {lines:[text],errors:[]};
  if(!tokens){
   tokens=[...new Intl.Segmenter('zh-CN',{granularity:'word'}).segment(text)].map(part=>part.segment);
   tokens=tokens.reduce((out,part)=>{if(/^[，。、；：！？）》】]+$/.test(part)&&out.length)out[out.length-1]+=part;else out.push(part);return out;},[]);
   if(tokens.at(-1)==='通知'&&tokens.length>1)tokens.splice(-2,2,tokens.at(-2)+tokens.at(-1));
  }
- const lines=balancedLines(tokens);return lines?{lines,errors:[]}:{lines:[text],errors:['标题含过长的完整词组或产品编号，请在标题栏按词意换行']};
+ const lines=balancedLines(tokens,measure);return lines?{lines,errors:[]}:{lines:[text],errors:['标题含过长的完整词组或产品编号，请在标题栏按词意换行']};
 }
 export function attachmentLayout(items){
  const multiple=items.length>1;

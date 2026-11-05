@@ -16,9 +16,11 @@ test('通知按真实示例编排四节及产品表，只取已校验的说明�
   const text=noticeText(doc);for(const heading of ['一、产品发行安排及产品概况','二、发行渠道','三、发行区域','四、营销要点'])assert.ok(text.includes(heading));
   assert.ok(!text.includes('未复核修改'));assert.equal(doc.attachments.length,15);assert.equal(doc.attachments[0].kind,'common');assert.equal(doc.attachments[3].productId,p.id);
 });
-test('非连续、跨系列及缺少标准期次的产品不错误合并区间',()=>{
+test('期号仅在同前缀、同位数且连续时合并，单独期号保留',()=>{
   assert.equal(productScope([{name:'结构性存款A08079期'},{name:'结构性存款A08081期'}]),'结构性存款A08079、A08081期产品');
   assert.equal(productScope([{name:'结构性存款A08079期'},{name:'结构性存款B08080期'}]),'结构性存款A08079、B08080期产品');
+  const rows=['B08084','A08082','A08084','A08081','A08081','A8083','A08087','A08088','B08085'].map(code=>({name:`结构性存款${code}期`}));
+  assert.equal(productScope(rows),'结构性存款A8083、A08081-A08082、A08084、A08087-A08088、B08084-B08085期产品');
   assert.equal(productScope([{name:'产品一'},{name:'产品二'}]),'2款结构性存款产品');
 });
 test('现有通知不自动覆盖，保存新模板后才替换且清除确认',()=>{
@@ -75,6 +77,23 @@ function zipEntry(buffer,name){
   }
   throw Error(`Missing ${name}`);
 }
+test('通知标题、开头和产品概况共用分段期号，预览与Word保留产品表和附件顺序',async()=>{
+  const {state,issue}=fixture();
+  issue.productIds=[4,1,0,2,8,6,7,10].map(index=>issue.productIds[index]);
+  const doc=buildNoticeDocument(state,issue,complete(issue));
+  const scope='结构性存款C09001-C09003、C09005、C09007-C09009、C09011期产品';
+  assert.equal(doc.title,`关于发行${scope}的通知`);
+  assert.ok(doc.body.intro.includes(scope));
+  assert.ok(doc.body.schedule.includes(scope));
+  assert.deepEqual(doc.rows.map(row=>row.id),issue.productIds);
+  assert.deepEqual(doc.attachments.filter(a=>a.kind==='prospectus').map(a=>a.productId),issue.productIds);
+
+  const html=noticeHTML(doc).replaceAll('<br>','');
+  const blob=await noticeDocx(doc);
+  const xml=zipEntry(Buffer.from(await blob.arrayBuffer()),'word/document.xml');
+  const wordText=[...xml.matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map(match=>match[1]).join('');
+  for(const text of [html,wordText])assert.equal(text.split(scope).length-1,3);
+});
 test('导出为真实Word文件，12只产品完整进入表格且表头可跨页重复',async()=>{
   const {state,issue}=fixture(),doc=buildNoticeDocument(state,issue,complete(issue));
   const blob=await noticeDocx(doc),buffer=Buffer.from(await blob.arrayBuffer());assert.equal(buffer.readUInt32LE(0),0x04034b50);

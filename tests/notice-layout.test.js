@@ -40,6 +40,9 @@ test('标题按完整词意分行，单期短标题不强制换行，显式换�
  assert.deepEqual(noticeTitleLayout(multiple.doc.title).lines,['关于发行结构性存款','C09001-C09003期产品的通知']);
  const many='关于发行结构性存款'+Array.from({length:12},(_,i)=>'A'+(80000+i*2)).join('、')+'期产品的通知';
  const plan=noticeTitleLayout(many);assert.deepEqual(plan.errors,[]);assert.equal(plan.lines.join(''),many);assert.ok(plan.lines.every(line=>textEmWidth(line)<=20.4));
+ const ranges='关于发行结构性存款A08082-A08084、A08086-A08088、A08090-A08099期产品的通知';
+ const rangePlan=noticeTitleLayout(ranges);assert.deepEqual(rangePlan.errors,[]);assert.equal(rangePlan.lines.join(''),ranges);
+ assert.equal(rangePlan.lines.length,3);assert.ok(rangePlan.lines.at(-1).endsWith('A08090-A08099期产品的通知'));
  single.doc.title='关于发行结构性存款\nC09001期产品的通知';const xml=(await filesFor(single.doc))['word/document.xml'],titles=styled(xml,'MainTitle');assert.equal(titles.length,1);assert.match(titles[0],/<w:br\/>/);
  for(const run of titles[0].matchAll(/<w:r>([\s\S]*?)<\/w:r>/g)){assert.match(run[1],/w:eastAsia="方正小标宋简体"/);assert.match(run[1],/w:sz w:val="44"/);}
 });
